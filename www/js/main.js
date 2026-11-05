@@ -464,8 +464,10 @@ canvas.addEventListener('pointermove', e => {
   if (!raycaster.ray.intersectPlane(dragPlane, p)) return;
   p.x = THREE.MathUtils.clamp(p.x, -2.2, 2.2); p.z = THREE.MathUtils.clamp(p.z, -1.6, 1.4);
   const h = current.holder;
-  h.position.lerp(new THREE.Vector3(p.x, p.y - 0.35, p.z), 0.6);
   const near = overBox(p);
+  // Over the box the lid swings open by itself and the thing hovers above the rim, never through the lid.
+  if (near && !lidOpen) { drag.openedLid = true; setLid(true); }
+  h.position.lerp(new THREE.Vector3(p.x, near ? p.y : p.y - 0.35, p.z), 0.6);
   h.scale.setScalar(THREE.MathUtils.lerp(h.scale.x, near ? current.fit : 1, 0.2));
   drag.over = near;
   box.userData.setInnerLight(near ? 1 : lidOpen ? 1 : 0);
@@ -496,7 +498,8 @@ const endDrag = e => {
       await animate(0.45, k => { c.holder.position.lerpVectors(from, to, ease.inOut(k)); c.holder.scale.setScalar(s0 + (1 - s0) * k); });
       spinner.add(c.holder);
       c.holder.position.set(0, 0, 0); c.holder.rotation.set(0, 0, 0); c.holder.scale.setScalar(1);
-      if (!lidOpen) box.userData.setInnerLight(0);
+      if (d.openedLid && phase === 'stage') await setLid(false);
+      else if (!lidOpen) box.userData.setInnerLight(0);
       play('boing');
       busy = false;
       setPhase(phase);
@@ -505,6 +508,7 @@ const endDrag = e => {
 };
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
+canvas.addEventListener('lostpointercapture', endDrag); // released outside the window: never leave it hanging
 
 function react(c) {
   const kind = c.type === 'item' ? c.item.sound : c.type === 'monster' ? 'monster' : null;
