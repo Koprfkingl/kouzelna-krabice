@@ -28,11 +28,13 @@ export function makeBox(tex) {
   const add = (m, x, y, z, parent = box) => { m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; parent.add(m); return m; };
 
   // Hollow body: floor and four walls, lined with velvet inside.
-  add(new THREE.Mesh(new RoundedBoxGeometry(W, H, T, 4, 0.025), wood), 0, B + H / 2, D / 2 - T / 2);
-  add(new THREE.Mesh(new RoundedBoxGeometry(W, H, T, 4, 0.025), wood), 0, B + H / 2, -D / 2 + T / 2);
-  for (const s of [-1, 1]) add(new THREE.Mesh(new RoundedBoxGeometry(T, H, D - 0.02, 4, 0.025), wood), s * (W / 2 - T / 2), B + H / 2, 0);
+  // Walls stop 12 mm under the rim top so the brass rim fully covers their upper edge.
+  const WH = H - 0.012;
+  add(new THREE.Mesh(new RoundedBoxGeometry(W, WH, T, 4, 0.025), wood), 0, B + WH / 2, D / 2 - T / 2);
+  add(new THREE.Mesh(new RoundedBoxGeometry(W, WH, T, 4, 0.025), wood), 0, B + WH / 2, -D / 2 + T / 2);
+  for (const s of [-1, 1]) add(new THREE.Mesh(new RoundedBoxGeometry(T, WH, D - 0.02, 4, 0.025), wood), s * (W / 2 - T / 2), B + WH / 2, 0);
   add(new THREE.Mesh(new THREE.BoxGeometry(W - 0.02, T, D - 0.02), wood), 0, B + T / 2, 0);
-  const IW = W - 2 * T, ID = D - 2 * T, IH = H - T;
+  const IW = W - 2 * T, ID = D - 2 * T, IH = H - T - 0.012;
   add(new THREE.Mesh(new THREE.BoxGeometry(IW, 0.02, ID), velvet), 0, B + T + 0.01, 0);
   for (const s of [-1, 1]) {
     const fb = add(new THREE.Mesh(new THREE.PlaneGeometry(IW, IH), velvet), 0, B + T + IH / 2, s * (ID / 2 - 0.002));
