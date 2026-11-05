@@ -131,7 +131,7 @@ export function makeMonster(seed, opts = {}) {
   const pear = (r() - 0.3) * 0.5;
   const rn = [1 + r() * 2, 1 + r() * 2, 1 + r() * 2, r() * 6, r() * 6, r() * 6];
   const bumps = skin === 'jelly' ? 0.02 : 0.05;
-  const geo = new THREE.SphereGeometry(0.5, 96, 64);
+  const geo = new THREE.SphereGeometry(0.5, 72, 48);
   const pos = geo.attributes.position, v = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
@@ -146,8 +146,9 @@ export function makeMonster(seed, opts = {}) {
 
   let bodyMat;
   if (skin === 'jelly') {
-    bodyMat = new THREE.MeshPhysicalMaterial({ color: baseColor, roughness: 0.12, transmission: 0.75, thickness: 0.6, ior: 1.35,
-      attenuationColor: baseColor.clone().multiplyScalar(0.8), attenuationDistance: 0.5, clearcoat: 1, clearcoatRoughness: 0.05 });
+    // Jelly look without real transmission (that costs a second render of the whole scene on phones).
+    bodyMat = new THREE.MeshPhysicalMaterial({ color: baseColor, roughness: 0.1, transparent: true, opacity: 0.82, clearcoat: 1, clearcoatRoughness: 0.05,
+      emissive: baseColor, emissiveIntensity: 0.18 });
   } else if (skin === 'velvet') {
     bodyMat = new THREE.MeshPhysicalMaterial({ color: baseColor, roughness: 0.75, sheen: 1, sheenRoughness: 0.45,
       sheenColor: baseColor.clone().lerp(new THREE.Color(1, 1, 1), 0.5) });
@@ -164,7 +165,7 @@ export function makeMonster(seed, opts = {}) {
   if (skin === 'fur') {
     const long = r() < 0.4;
     furLen = long ? 0.09 : 0.05;
-    bodyGroup.add(makeFur(geo, baseColor, furLen, long ? 18 : 14, new THREE.Vector2(long ? 34 : 48, long ? 17 : 24)));
+    bodyGroup.add(makeFur(geo, baseColor, furLen, long ? 12 : 10, new THREE.Vector2(long ? 34 : 48, long ? 17 : 24)));
   }
   monster.add(bodyGroup);
 

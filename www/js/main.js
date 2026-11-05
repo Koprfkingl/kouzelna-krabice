@@ -1,12 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 import { ITEMS, KINDS, byId, proměnil, monsterName } from './catalog.js';
 import { makeMonster, rng } from './monster.js';
@@ -22,28 +17,25 @@ const SLOW = Number(params.get('pomalu')) || 1; // for testing on slow machines
 // ---------- Renderer & scene ----------
 const canvas = $('scena');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: params.has('nahledy') });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// Phones have very dense screens; drawing every physical pixel makes the game stutter.
+// Start at a moderate resolution and lower it further if frames take too long (see adaptQuality).
+const MOBILE = /Android|iPhone|iPad/i.test(navigator.userAgent);
+const DPR_STEPS = [Math.min(window.devicePixelRatio, MOBILE ? 1.5 : 2), 1.25, 1.0, 0.8].filter((v, i, a) => i === 0 || v < a[0]);
+let dprStep = 0;
+renderer.setPixelRatio(DPR_STEPS[0]);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 60);
 const CAM_LOOK = new THREE.Vector3(0, 0.62, -0.25);
 const camBase = new THREE.Vector3(0, 1.75, 3.6);
 
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.5, 0.5, 1.0);
-composer.addPass(bloom);
-composer.addPass(new OutputPass());
-
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
-  composer.setSize(w, h);
-  bloom.setSize(Math.ceil(w / 2), Math.ceil(h / 2));
   camera.aspect = w / h;
   // On a narrow phone screen pull the camera back so the box and the stage both fit.
   const fit = Math.max(1, 0.62 / camera.aspect);
@@ -58,10 +50,10 @@ window.addEventListener('resize', resize);
 const key = new THREE.DirectionalLight(0xfff1dc, 2.2);
 key.position.set(2.2, 4, 2.4);
 key.castShadow = true;
-key.shadow.mapSize.set(2048, 2048);
+key.shadow.mapSize.set(1024, 1024);
 key.shadow.camera.left = -2.5; key.shadow.camera.right = 2.5; key.shadow.camera.top = 2.5; key.shadow.camera.bottom = -2.5;
 key.shadow.camera.near = 1; key.shadow.camera.far = 10;
-key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02; key.shadow.radius = 4;
+key.shadow.bias = -0.0006; key.shadow.normalBias = 0.02;
 scene.add(key);
 const rim = new THREE.DirectionalLight(0xb48cff, 0.9);
 rim.position.set(-3, 2.5, -2);
@@ -74,6 +66,7 @@ scene.add(flashLight);
 
 // ---------- Loading ----------
 const manager = new THREE.LoadingManager();
+const ENV_INTENSITY = 1.1;
 const loadBar = $('nacitani-bar');
 const texLoader = new THREE.TextureLoader(manager);
 const gltfLoader = new GLTFLoader();
@@ -87,15 +80,29 @@ function loadTex(url, srgb) {
 }
 const wood = { wood: loadTex('textury/hardwood2_diffuse.jpg', true), woodRough: loadTex('textury/hardwood2_roughness.jpg'), woodBump: loadTex('textury/hardwood2_bump.jpg') };
 
-const envReady = new Promise(res => new HDRLoader(manager).load('textury/royal_esplanade_1k.hdr', t => {
-  t.mapping = THREE.EquirectangularReflectionMapping;
-  scene.environment = t;
-  scene.background = t;
-  scene.backgroundBlurriness = 0.45;
-  scene.backgroundIntensity = 0.32;
-  scene.environmentIntensity = 0.85;
-  res();
-}));
+// The room around the table: an ordinary 8-bit photo (made from an HDR panorama by scripts/hdr2jpg.py).
+// Float HDR textures overflowed on phone GPUs and turned the whole picture black and white.
+const envReady = Promise.all([
+  new Promise(res => texLoader.load('textury/prostredi.jpg', t => {
+    t.mapping = THREE.EquirectangularReflectionMapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    // Reflections need float render targets; on a GPU without them use plain soft light instead.
+    const gl = renderer.getContext();
+    if (gl.getExtension('EXT_color_buffer_half_float') || gl.getExtension('EXT_color_buffer_float')) {
+      scene.environment = t;
+      scene.environmentIntensity = ENV_INTENSITY;
+    } else {
+      scene.add(new THREE.HemisphereLight(0xfff4e8, 0x5a4636, 1.6));
+    }
+    res();
+  })),
+  new Promise(res => texLoader.load('textury/pozadi.jpg', t => {
+    t.mapping = THREE.EquirectangularReflectionMapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    scene.background = t; // pre-blurred and darkened, so no blur pass is needed
+    res();
+  })),
+]);
 
 // Table
 const tableTex = {};
@@ -145,6 +152,12 @@ async function buildItem(item) {
   const drop = [];
   model.traverse(o => { if (o.isLight || o.isCamera || (item.hide && item.hide.includes(o.name.replace(/_/g, ' ')))) drop.push(o); });
   for (const o of drop) o.removeFromParent();
+  model.traverse(o => {
+    if (!o.isMesh) return;
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+      if (m.transmission > 0) { m.transmission = 0; m.transparent = true; m.opacity = Math.min(m.opacity, 0.35); m.depthWrite = false; }
+    }
+  });
   model.updateMatrixWorld(true);
   const bb = new THREE.Box3().setFromObject(model, true);
   const size = bb.getSize(new THREE.Vector3());
@@ -272,7 +285,7 @@ async function transform(targetSrc) {
   await animate(1.1, k => {
     box.userData.setCharge(k * k);
     key.intensity = 2.2 - k * 1.2;
-    scene.environmentIntensity = 0.85 - k * 0.4;
+    scene.environmentIntensity = ENV_INTENSITY * (1 - k * 0.45);
   });
 
   // 2) Laser on: it sweeps over the thing and dissolves it.
@@ -318,7 +331,7 @@ async function transform(targetSrc) {
     hitLight.intensity = (1 - k) * 4;
     box.userData.setCharge(1 - k);
     key.intensity = 1.0 + k * 1.2;
-    scene.environmentIntensity = 0.45 + k * 0.4;
+    scene.environmentIntensity = ENV_INTENSITY * (0.55 + k * 0.45);
     last = now;
   });
   laser.visible = false;
@@ -409,9 +422,30 @@ function loop() {
   updateReaction(now);
   sparkles.userData.update(dt);
   if (!busy) box.userData.setCharge(0.08 + 0.06 * Math.sin(t * 1.5));
-  composer.render();
+  renderer.render(scene, camera);
+  adaptQuality(dt);
   if (pendingSnapshot) { pendingSnapshot(); pendingSnapshot = null; }
   requestAnimationFrame(loop);
+}
+
+// If the phone can't keep up, draw fewer pixels (checked every 2 seconds, only ever goes down).
+let qT = 0, qFrames = 0, qSlow = 0;
+function adaptQuality(dt) {
+  if (FREEZE || document.hidden) return;
+  qT += dt; qFrames++;
+  if (qT < 2) return;
+  const fps = qFrames / qT;
+  qT = 0; qFrames = 0;
+  qSlow = fps < 45 ? qSlow + 1 : 0;
+  if (qSlow >= 1 && dprStep < DPR_STEPS.length - 1) {
+    dprStep++;
+    renderer.setPixelRatio(DPR_STEPS[dprStep]);
+    resize();
+    qSlow = 0;
+  } else if (qSlow >= 2 && renderer.shadowMap.enabled && dprStep === DPR_STEPS.length - 1) {
+    key.shadow.mapSize.set(512, 512);
+    key.shadow.map?.dispose(); key.shadow.map = null;
+  }
 }
 
 // Crops the monster out of the frame for the album thumbnail.

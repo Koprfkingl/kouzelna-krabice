@@ -87,7 +87,7 @@ export function makeBox(tex) {
   tube.rotation.x = Math.PI / 2;
   tube.position.z = 0.04;
   const crystalMat = new THREE.MeshPhysicalMaterial({
-    color: 0xe6c8ff, emissive: 0xc070ff, emissiveIntensity: 0.4, roughness: 0.05, transmission: 0.6, thickness: 0.2, ior: 1.6, clearcoat: 1,
+    color: 0xe6c8ff, emissive: 0xc070ff, emissiveIntensity: 0.4, roughness: 0.05, clearcoat: 1,
   });
   const crystal = new THREE.Mesh(new THREE.SphereGeometry(0.15, 48, 32), crystalMat);
   crystal.scale.z = 0.45;
@@ -102,6 +102,18 @@ export function makeBox(tex) {
   }
   lensGroup.add(ring, tube, crystal);
   box.add(lensGroup);
+
+  // Soft glow around the lens (a cheap stand-in for a bloom pass)
+  const gc = document.createElement('canvas'); gc.width = gc.height = 128;
+  const gg = gc.getContext('2d');
+  const grad = gg.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(255,230,255,1)'); grad.addColorStop(0.2, 'rgba(230,120,255,0.55)'); grad.addColorStop(1, 'rgba(160,60,255,0)');
+  gg.fillStyle = grad; gg.fillRect(0, 0, 128, 128);
+  const glowMat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(gc), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.3 });
+  const glow = new THREE.Sprite(glowMat);
+  glow.position.set(0, 0.48, D / 2 + 0.12);
+  glow.scale.setScalar(0.55);
+  box.add(glow);
 
   // Lens light for the charge-up
   const lensLight = new THREE.PointLight(0xc070ff, 0, 2.5, 2);
@@ -121,6 +133,8 @@ export function makeBox(tex) {
       crystalMat.emissiveIntensity = 0.4 + k * 5;
       starMat.emissiveIntensity = 0.25 + k * 4;
       lensLight.intensity = k * 6;
+      glowMat.opacity = 0.3 + k * 0.7;
+      glow.scale.setScalar(0.55 + k * 0.9);
     },
     lid,
   };
