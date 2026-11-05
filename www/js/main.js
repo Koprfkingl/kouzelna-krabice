@@ -170,7 +170,7 @@ async function buildPhoto(photo) {
   return g;
 }
 
-function buildMonster(m) { return makeMonster(m.seed, { tint: m.tint, size: 0.82 }); }
+function buildMonster(m) { return makeMonster(m.seed, { tint: m.tint, size: 0.82, gen: m.gen || 1 }); }
 
 function describe(src) {
   if (src.type === 'item') return { living: src.item.kind === 'zive', name: src.item.name, acc: src.item.acc, g: src.item.g };
@@ -257,16 +257,20 @@ async function putOnStage(src, { appear = true } = {}) {
   return next;
 }
 
+let lidK = 0; // 0 shut, 1 open; follows the finger while the lid is dragged
+function setLidK(k) { lidK = k; box.userData.setLid(k); }
 async function setLid(open) {
-  if (lidOpen === open) return;
+  const to = open ? 1 : 0;
+  if (lidOpen === open && lidK === to) return;
   lidOpen = open;
   play('lid');
-  const from = open ? 0 : 1, to = open ? 1 : 0;
-  await animate(open ? 0.9 : 0.7, k => {
+  const from = lidK, light0 = from;
+  await animate((open ? 0.9 : 0.7) * Math.max(0.3, Math.abs(to - from)), k => {
     const e = open ? ease.out(k) : ease.inOut(k);
-    box.userData.setLid(from + (to - from) * e);
-    box.userData.setInnerLight(open ? e : 1 - e);
+    setLidK(from + (to - from) * e);
+    box.userData.setInnerLight(light0 + (to - light0) * e);
   });
+  setLidK(to);
   if (!open) play('thump');
 }
 
@@ -403,6 +407,7 @@ function flash() {
 // Two views: the stage in front of the box, and a closer look into the box.
 const SHOTS = {
   stage: { pos: new THREE.Vector3(0, 1.75, 3.7), look: new THREE.Vector3(0, 0.6, -0.2) },
+  care: { pos: new THREE.Vector3(0, 1.35, 3.3), look: new THREE.Vector3(0, -0.05, 0.55) }, // monster up high, above the care panel
   box: { pos: new THREE.Vector3(0, 3.65, 1.75), look: new THREE.Vector3(0, 0.35, -1.0) },
 };
 let shot = 'stage';
@@ -432,78 +437,150 @@ scene.add(lampLight);
 const flashLight = new THREE.PointLight(0xffffff, 0, 6, 2);
 scene.add(flashLight);
 
-// Tap = the thing reacts. Drag from the stage = carry it with a finger and drop it into the box.
+// Tap = the thing reacts. Drag = carry it with a finger: from the stage into the box, or out of the open box.
 let drag = null;
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.0); // y = 1.0, just above the box
 const setPointer = e => { pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1); raycaster.setFromCamera(pointer, camera); };
 const overBox = p => Math.abs(p.x - box.position.x) < 0.95 && Math.abs(p.z - box.position.z) < 0.75;
+let tapHook = null; // care mode listens to taps and strokes on the monster
+
+// The lid follows a finger: pull it up to open, push it down to close.
+let lidDrag = null;
+const LID_OPENING = ['stage', 'closed', 'done'], LID_CLOSING = ['stageOpen', 'inside', 'result'];
+function startLidDrag(e) {
+  const opening = LID_OPENING.includes(phase);
+  if (!opening && !LID_CLOSING.includes(phase)) return false;
+  lidDrag = { y0: e.clientY, k0: lidK, opening, moved: false, id: e.pointerId, phase };
+  canvas.setPointerCapture(e.pointerId);
+  return true;
+}
+canvas.addEventListener('pointermove', e => {
+  if (!lidDrag || e.pointerId !== lidDrag.id) return;
+  const dy = lidDrag.y0 - e.clientY;
+  if (!lidDrag.moved) {
+    if (Math.abs(dy) < 10) return;
+    lidDrag.moved = true;
+    busy = true;
+    hidePanel(true);
+    hideBubble();
+    if (lidDrag.phase === 'result') lidDrag.sink = sinkIntoBox();
+    play('lid');
+  }
+  const k = THREE.MathUtils.clamp(lidDrag.k0 + dy / (window.innerHeight * 0.22), 0, 1);
+  setLidK(k);
+  box.userData.setInnerLight(k);
+});
+const endLidDrag = e => {
+  if (!lidDrag || e.pointerId !== lidDrag.id) return;
+  const d = lidDrag;
+  lidDrag = null;
+  const open = d.moved ? (d.opening ? lidK > 0.3 : lidK > 0.7) : d.opening; // a plain tap opens or closes too
+  busy = false;
+  if (open === lidOpen) { // changed its mind: the lid swings back
+    run(async () => { await d.sink; await setLid(open); }, { silent: true }).then(() => setPhase(phase));
+    return;
+  }
+  run(async () => { await d.sink; await LID_STEPS[d.phase](); });
+};
+canvas.addEventListener('pointerup', endLidDrag);
+canvas.addEventListener('pointercancel', endLidDrag);
+canvas.addEventListener('lostpointercapture', endLidDrag);
 
 canvas.addEventListener('pointerdown', e => {
   initAudio();
-  if (busy || !current) return;
+  if (busy || !current || drag || lidDrag) return;
   setPointer(e);
-  if (!raycaster.intersectObject(current.holder, true).length) return;
-  const canDrag = current.where === 'stage' && (phase === 'stage' || phase === 'stageOpen');
-  drag = { x: e.clientX, y: e.clientY, moved: false, canDrag, id: e.pointerId };
+  if (!raycaster.intersectObject(current.holder, true).length) {
+    if (raycaster.intersectObject(box, true).length) startLidDrag(e);
+    return;
+  }
+  const fromStage = current.where === 'stage' && (phase === 'stage' || phase === 'stageOpen');
+  const fromBox = current.where === 'box' && lidOpen && (phase === 'inside' || phase === 'result');
+  drag = { x: e.clientX, y: e.clientY, moved: false, canDrag: fromStage || fromBox, origin: fromBox ? 'box' : 'stage', id: e.pointerId, strokes: 0 };
   canvas.setPointerCapture(e.pointerId);
 });
 
 canvas.addEventListener('pointermove', e => {
-  if (!drag || !drag.canDrag || e.pointerId !== drag.id) return;
+  if (!drag || e.pointerId !== drag.id) return;
+  if (!drag.canDrag) {
+    // not draggable now: moving a finger over it counts as stroking (care mode)
+    if (tapHook && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 25) { drag.x = e.clientX; drag.y = e.clientY; drag.moved = true; tapHook('stroke'); }
+    return;
+  }
   if (!drag.moved) {
     if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 12) return;
     drag.moved = true;
     busy = true;
     hidePanel(true);
-    drag.from = current.holder.getWorldPosition(new THREE.Vector3());
+    hideBubble();
     scene.attach(current.holder);
+    drag.pos = current.holder.position.clone();
+    drag.scale = current.holder.scale.x;
     play('whoosh');
   }
   setPointer(e);
   const p = new THREE.Vector3();
   if (!raycaster.ray.intersectPlane(dragPlane, p)) return;
   p.x = THREE.MathUtils.clamp(p.x, -2.2, 2.2); p.z = THREE.MathUtils.clamp(p.z, -1.6, 1.4);
-  const h = current.holder;
   const near = overBox(p);
-  // Over the box the lid swings open by itself and the thing hovers above the rim, never through the lid.
-  if (near && !lidOpen) { drag.openedLid = true; setLid(true); }
-  h.position.lerp(new THREE.Vector3(p.x, near ? p.y : p.y - 0.35, p.z), 0.6);
-  h.scale.setScalar(THREE.MathUtils.lerp(h.scale.x, near ? current.fit : 1, 0.2));
   drag.over = near;
-  box.userData.setInnerLight(near ? 1 : lidOpen ? 1 : 0);
-  if (Math.random() < 0.3) sparkles.userData.emit(h.getWorldPosition(new THREE.Vector3()), 1, 0.4, 0.15);
+  if (near) {
+    // Over the box the lid swings open and the thing hovers right above the opening, already box-sized.
+    if (!lidOpen) { drag.openedLid = true; setLid(true); }
+    drag.pos.set(THREE.MathUtils.clamp(p.x, -0.45, 0.45), box.userData.top + 0.06, box.position.z + THREE.MathUtils.clamp(p.z - box.position.z, -0.2, 0.3));
+    drag.scale = current.fit;
+  } else {
+    drag.pos.set(p.x, p.y - 0.35, p.z);
+    drag.scale = 1;
+  }
+  box.userData.setInnerLight(near || lidOpen ? 1 : 0);
+  if (Math.random() < 0.3) sparkles.userData.emit(current.holder.getWorldPosition(new THREE.Vector3()), 1, 0.4, 0.15);
 });
+
+// Called every frame: the carried thing glides after the finger (smooth even when touch events are sparse).
+function updateDrag(dt) {
+  if (!drag || !drag.moved || !drag.pos || !current) return;
+  const h = current.holder, f = 1 - Math.exp(-dt * 14);
+  h.position.lerp(drag.pos, f);
+  h.scale.setScalar(THREE.MathUtils.lerp(h.scale.x, drag.scale, f));
+}
 
 const endDrag = e => {
   if (!drag || e.pointerId !== drag.id) return;
   const d = drag;
   drag = null;
-  if (!d.moved) { react(current); return; }
+  if (!d.moved) { if (tapHook) tapHook('tap'); else tapThing(current); return; }
+  if (!d.canDrag) return;
   const c = current;
   (async () => {
-    if (d.over) {
-      // Dropped over the box: open the lid if needed and let it fall in.
-      if (!lidOpen) await setLid(true);
-      const to = boxSlot.getWorldPosition(new THREE.Vector3()), from = c.holder.position.clone(), s0 = c.holder.scale.x;
-      await animate(0.5, k => { c.holder.position.lerpVectors(from, to, ease.inOut(k)); c.holder.scale.setScalar(s0 + (c.fit - s0) * k); });
-      boxSlot.add(c.holder);
-      c.holder.position.set(0, 0, 0); c.holder.rotation.set(0, 0, 0); c.holder.scale.setScalar(c.fit);
-      c.where = 'box'; c.raised = false;
-      play('place');
-      busy = false;
-      setPhase('inside');
-    } else {
-      // Dropped elsewhere: it hops back onto the stage.
-      const to = spinner.getWorldPosition(new THREE.Vector3()), from = c.holder.position.clone(), s0 = c.holder.scale.x;
-      await animate(0.45, k => { c.holder.position.lerpVectors(from, to, ease.inOut(k)); c.holder.scale.setScalar(s0 + (1 - s0) * k); });
-      spinner.add(c.holder);
-      c.holder.position.set(0, 0, 0); c.holder.rotation.set(0, 0, 0); c.holder.scale.setScalar(1);
-      if (d.openedLid && phase === 'stage') await setLid(false);
-      else if (!lidOpen) box.userData.setInnerLight(0);
-      play('boing');
-      busy = false;
-      setPhase(phase);
-    }
+    try {
+      if (d.over) {
+        // Dropped over the box: it settles inside.
+        const to = boxSlot.getWorldPosition(new THREE.Vector3()), from = c.holder.position.clone(), s0 = c.holder.scale.x;
+        await animate(0.5, k => { c.holder.position.lerpVectors(from, to, ease.inOut(k)); c.holder.scale.setScalar(s0 + (c.fit - s0) * k); });
+        boxSlot.add(c.holder);
+        c.holder.position.set(0, 0, 0); c.holder.rotation.set(0, 0, 0); c.holder.scale.setScalar(c.fit);
+        c.where = 'box'; c.raised = false;
+        play('place');
+        busy = false;
+        setPhase(d.origin === 'box' ? phase : 'inside');
+      } else {
+        // Dropped elsewhere: it lands on the stage (taken out of the box, or back where it was).
+        const to = spinner.getWorldPosition(new THREE.Vector3()), from = c.holder.position.clone(), s0 = c.holder.scale.x;
+        await animate(0.45, k => { c.holder.position.lerpVectors(from, to, ease.inOut(k)); c.holder.position.y += Math.sin(k * Math.PI) * 0.2; c.holder.scale.setScalar(s0 + (1 - s0) * k); });
+        spinner.add(c.holder);
+        c.holder.position.set(0, 0, 0); c.holder.rotation.set(0, 0, 0); c.holder.scale.setScalar(1);
+        c.where = 'stage'; c.raised = false;
+        play('boing');
+        if (d.origin === 'box') { mistTarget = 0; await setLid(false); busy = false; setPhase('stage'); }
+        else {
+          if (d.openedLid && phase === 'stage') await setLid(false);
+          else if (!lidOpen) box.userData.setInnerLight(0);
+          busy = false;
+          setPhase(phase);
+        }
+      }
+    } finally { busy = false; }
   })();
 };
 canvas.addEventListener('pointerup', endDrag);
@@ -528,15 +605,139 @@ function react(c) {
   reaction = { obj: c.bounce, start: performance.now(), spin: kind === 'auto' };
 }
 
+// Frantic tapping: after a few quick taps the thing stops playing along and does something silly.
+const tapTimes = [];
+const SPECIALS = ['stare', 'dizzy', 'puff', 'faint', 'hide', 'sneeze', 'run'];
+let specialBag = [];
+const SPECIAL_INFO = {
+  stare: { dur: 3.4, sound: 'hmm', say: 'Hmmm… 🤨' },
+  dizzy: { dur: 2.8, sound: 'dizzy', say: 'Točí se mi hlava! 😵‍💫' },
+  puff: { dur: 2.6, sound: 'puff', say: 'Já se zlobím! 😤' },
+  faint: { dur: 3.2, sound: 'faint', say: 'Uf… to už je moc! 😵' },
+  hide: { dur: 3.0, sound: 'hide', say: 'Já tu nejsem! 🙈' },
+  sneeze: { dur: 2.4, sound: 'sneeze', say: 'Haaa… pčík! 🤧' },
+  run: { dur: 3.2, sound: 'run', say: 'Chyť si mě! 😜' },
+};
+function tapThing(c) {
+  if (!c) return;
+  const now = performance.now();
+  tapTimes.push(now);
+  while (tapTimes.length && now - tapTimes[0] > 2200) tapTimes.shift();
+  if (reaction && reaction.kind) return;               // busy being silly: ignore taps
+  if (tapTimes.length >= 5) { tapTimes.length = 0; startSpecial(c); return; }
+  if (reaction) return;                                  // let the hop finish instead of restarting it
+  react(c);
+}
+function startSpecial(c, kind) {
+  if (!kind) {
+    if (!specialBag.length) specialBag = SPECIALS.slice().sort(() => Math.random() - 0.5);
+    kind = specialBag.pop();
+  }
+  const info = SPECIAL_INFO[kind];
+  play(info.sound);
+  showBubble(info.say);
+  speak(info.say.replace(/[^\p{L}\p{N}\s!?.,…]/gu, ''));
+  const o = c.bounce;
+  o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.setScalar(1);
+  reaction = { kind, start: performance.now(), obj: o, dur: info.dur, c, mon: c.obj.userData.monster, fired: {} };
+}
+const once = (r, key, fn) => { if (!r.fired[key]) { r.fired[key] = true; fn(); } };
+
 function updateReaction(now) {
   if (!reaction) return;
-  const t = (now - reaction.start) / 1000, o = reaction.obj;
-  if (t > 1.0) { o.scale.setScalar(1); o.position.y = 0; o.rotation.y = 0; reaction = null; return; }
-  const jump = Math.sin(Math.min(1, t * 1.6) * Math.PI);
-  o.position.y = jump * 0.22;
-  const squash = 1 + Math.sin(t * Math.PI * 4) * 0.08 * (1 - t);
-  o.scale.set(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash));
-  if (reaction.spin) o.rotation.y = ease.out(t) * Math.PI * 2;
+  const r = reaction, t = (now - r.start) / 1000, o = r.obj;
+  const end = () => { o.scale.setScalar(1); o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); if (r.mon) r.mon.expr = {}; reaction = null; };
+  if (!r.kind) {
+    if (t > 1.0) { end(); return; }
+    const jump = Math.sin(Math.min(1, t * 1.6) * Math.PI);
+    o.position.y = jump * 0.22;
+    const squash = 1 + Math.sin(t * Math.PI * 4) * 0.08 * (1 - t);
+    o.scale.set(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash));
+    if (r.spin) o.rotation.y = ease.out(t) * Math.PI * 2;
+    return;
+  }
+  if (t > r.dur || current !== r.c) { end(); return; }
+  const k = t / r.dur, mon = r.mon, expr = mon ? (mon.expr ||= {}) : {};
+  const facing = r.c.where === 'stage' ? -spinner.rotation.y : 0; // turn to face the screen
+  const head = () => centerOf(r.c.obj).c;
+  switch (r.kind) {
+    case 'stare': { // stops, turns to the screen, comes closer and stares for a long while
+      const inK = ease.out(Math.min(1, t / 0.6)), outK = t > r.dur - 0.5 ? ease.inOut((t - r.dur + 0.5) / 0.5) : 0;
+      const a = inK * (1 - outK);
+      o.rotation.y = facing * a;
+      o.rotation.x = 0.18 * a;
+      o.scale.setScalar(1 + 0.12 * a);
+      expr.eyeScale = 1 + 0.4 * a;
+      expr.closed = t > 1.9 && t < 2.35; // one slow blink
+      break;
+    }
+    case 'dizzy': {
+      const d = 1 - k;
+      o.rotation.y = t * 9 * d;
+      o.rotation.z = Math.sin(t * 7) * 0.3 * d;
+      o.rotation.x = Math.cos(t * 7) * 0.2 * d;
+      expr.eyeScale = 1 + 0.2 * Math.sin(t * 12);
+      if (Math.random() < 0.35) { const h = head(); h.y += 0.45; sparkles.userData.emit(h, 1, 0.4, 0.1); }
+      if (t > r.dur - 0.4) o.scale.set(1.1, 0.85, 1.1);
+      break;
+    }
+    case 'puff': {
+      if (t < 1.4) { const g = ease.out(t / 1.4); o.scale.setScalar(1 + 0.5 * g + Math.sin(t * 40) * 0.015 * g); expr.eyeScale = 1 - 0.3 * g; }
+      else {
+        once(r, 'prrr', () => play('prrr'));
+        const q = (t - 1.4) / (r.dur - 1.4);
+        o.scale.setScalar(1 + 0.5 * Math.max(0, 1 - q * 4));
+        o.position.y = Math.sin(Math.min(1, q * 1.5) * Math.PI) * 0.35;
+        o.rotation.y = q * Math.PI * 6 * Math.max(0, 1 - q);
+        expr.eyeScale = 1;
+      }
+      break;
+    }
+    case 'faint': { // falls over backwards, lies there, then springs back up
+      let fall;
+      if (t < 0.5) fall = ease.inOut(t / 0.5);
+      else if (t < 2.3) fall = 1;
+      else fall = 1 - ease.elastic(Math.min(1, (t - 2.3) / 0.9));
+      o.rotation.x = -1.35 * fall;
+      o.rotation.y = facing * 0.5;
+      expr.closed = t > 0.4 && t < 2.3;
+      break;
+    }
+    case 'hide': { // squashes flat, trembles, then peeks out
+      let h;
+      if (t < 0.25) h = 1 - 0.7 * ease.out(t / 0.25);
+      else if (t < 1.9) h = 0.3 + Math.sin(t * 50) * 0.01;
+      else h = 0.3 + 0.7 * ease.elastic(Math.min(1, (t - 1.9) / 1.0));
+      o.scale.set(1 + (1 - h) * 0.4, h, 1 + (1 - h) * 0.4);
+      expr.closed = t > 0.2 && t < 1.6;
+      break;
+    }
+    case 'sneeze': {
+      if (t < 1.05) { const a = ease.inOut(t / 1.05); o.rotation.x = -0.35 * a; o.scale.set(1, 1 + 0.12 * a, 1); expr.closed = a > 0.6; }
+      else {
+        const q = Math.min(1, (t - 1.05) / 0.25);
+        once(r, 'burst', () => { const h = head(); h.z += 0.3; sparkles.userData.emit(h, 60, 1.6, 0.25); });
+        const back = t > 1.6 ? ease.out(Math.min(1, (t - 1.6) / 0.6)) : 0;
+        o.rotation.x = (-0.35 + 0.8 * ease.out(q)) * (1 - back);
+        o.scale.set(1, 1 - 0.1 * (1 - back), 1);
+        o.position.z = -0.1 * ease.out(q) * (1 - back);
+        expr.closed = t < 1.4;
+      }
+      break;
+    }
+    case 'run': { // hops away out of reach, waits, sneaks back
+      let x;
+      if (t < 0.7) x = ease.out(t / 0.7);
+      else if (t < 1.9) x = 1;
+      else x = 1 - ease.inOut(Math.min(1, (t - 1.9) / 1.2));
+      o.position.x = x * 0.9;
+      const hopping = t < 0.7 || t > 1.9;
+      o.position.y = hopping ? Math.abs(Math.sin(t * 14)) * 0.12 : 0;
+      o.rotation.y = facing + (t < 0.7 ? 1.2 : t > 1.9 ? -1.2 : 0) * (hopping ? 1 : 0);
+      if (t > 1.9) once(r, 'back', () => play('run'));
+      break;
+    }
+  }
 }
 
 // ---------- Main loop ----------
@@ -555,6 +756,8 @@ function loop() {
     if (ud.float && !reaction) current.obj.position.y = Math.sin(t * 1.7) * 0.04;
   }
   updateReaction(now);
+  updateDrag(dt);
+  updateFloaters(dt);
   sparkles.userData.update(dt);
   mist += (mistTarget - mist) * Math.min(1, dt * 2);
   box.userData.setMist(lidOpen ? mist : mist * 0.0);
@@ -618,15 +821,27 @@ let album = store.get('kk-album', []);
 for (const a of album) a.name = monsterName(rng(a.seed)); // names from the current list
 let photos = store.get('kk-fotky', []);
 
+const MAX_MONSTERS = 21;
 async function saveToAlbum(c) {
-  if (album.some(a => a.seed === c.monster.seed)) return;
+  if (album.some(a => a.seed === c.monster.seed)) return true;
+  if (album.length >= MAX_MONSTERS) {
+    c.unsaved = true;
+    setTimeout(() => {
+      if (current !== c) return;
+      const t = `Sbírka je plná, máš už ${MAX_MONSTERS} příšerek! Pusť jednu na svobodu a ${c.monster.name} se k nim přidá.`;
+      showBubble(t); speak(t);
+    }, 4500);
+    return false;
+  }
   const thumb = await snapshot(c.obj);
-  album.unshift({ seed: c.monster.seed, name: c.monster.name, tint: c.monster.tint || null, thumb });
-  album = album.slice(0, 80);
+  album.unshift({ seed: c.monster.seed, name: c.monster.name, tint: c.monster.tint || null, gen: c.monster.gen || 1, thumb, pece: freshCare() });
+  c.unsaved = false;
   while (!store.set('kk-album', album) && album.length > 1) album.pop();
   updateAlbumCount();
+  return true;
 }
-function updateAlbumCount() { $('album-pocet').textContent = album.length; }
+function saveAlbum() { store.set('kk-album', album); updateAlbumCount(); }
+function updateAlbumCount() { $('album-pocet').textContent = album.length; $('album-stav').textContent = `${album.length} / ${MAX_MONSTERS}`; }
 
 // ---------- Speech ----------
 function speak(text) {
@@ -694,6 +909,9 @@ function renderTargets() {
   tabs($('zalozky-cil'), dstTab, id => { dstTab = id; renderTargets(); }, TARGET_KINDS);
   const grid = $('mrizka-cil');
   grid.innerHTML = '';
+  // every target picture can be dragged onto the box: pick it and fire in one move
+  grid._append ||= grid.append.bind(grid);
+  grid.append = (...els) => { for (const el of els) draggableToBox(el, () => phase === 'closed' ? () => { delete el.dataset.pretazeno; el.click(); run(fireLaser); } : null); grid._append(...els); };
   const pickT = (src, el) => {
     chosenTarget = src;
     grid.querySelectorAll('.vybrano').forEach(x => x.classList.remove('vybrano'));
@@ -705,7 +923,7 @@ function renderTargets() {
   const mark = (t, same) => { if (same) t.classList.add('vybrano'); return t; };
   if (dstTab === 'priserky') {
     grid.append(tile({ label: 'Nová příšerka', icon: '👾', onClick: el => pickT({ type: 'monster', monster: newMonsterSpec() }, el) }));
-    for (const a of album) grid.append(mark(tile({ label: a.name, img: a.thumb, onClick: el => pickT({ type: 'monster', monster: { seed: a.seed, name: a.name, tint: a.tint } }, el) }), chosenTarget.monster?.seed === a.seed));
+    for (const a of album) grid.append(mark(tile({ label: a.name, img: a.thumb, onClick: el => pickT({ type: 'monster', monster: { seed: a.seed, name: a.name, tint: a.tint, gen: a.gen } }, el) }), chosenTarget.monster?.seed === a.seed));
   } else if (dstTab === 'fotky') {
     for (const p of photos) grid.append(mark(tile({ label: 'Fotka', img: p.data, onClick: el => pickT({ type: 'photo', photo: p }, el) }), chosenTarget.photo?.id === p.id));
   } else {
@@ -718,7 +936,7 @@ function renderTargets() {
 
 function newMonsterSpec(tint) {
   const seed = (Math.random() * 2 ** 31) >>> 0 || 7;
-  return { seed, name: monsterName(rng(seed)), tint: tint || null };
+  return { seed, name: monsterName(rng(seed)), tint: tint || null, gen: 2 };
 }
 function randomTarget() {
   const pool = ITEMS.filter(i => !(current.type === 'item' && current.item.id === i.id));
@@ -732,6 +950,16 @@ function pickTarget() {
   return chosenTarget;
 }
 
+// Each step of the magic: one button press, or the same step done by hand (lid gesture, dragging).
+const LID_STEPS = {
+  stage: async () => { await setLid(true); setPhase('stageOpen'); },
+  stageOpen: async () => { await setLid(false); setPhase('stage'); },
+  inside: async () => { mistTarget = 0; await setLid(false); setPhase('closed'); },
+  closed: async () => { await setLid(true); setPhase('inside'); },
+  done: async () => { await reveal(lastBefore); setPhase('result'); },
+  result: async () => { await sinkIntoBox(); mistTarget = 0; await setLid(false); setPhase('closed'); },
+};
+const fireLaser = async () => { const r = await zap(pickTarget()); lastBefore = r.before; setPhase('done'); };
 // Each step of the magic is one button press.
 // phase: stage → stageOpen → inside → closed → (laser) → done → (open) → result
 let phase = 'stage';
@@ -744,35 +972,51 @@ function setPhase(p) {
   let title = '', main = null, extra = [], tip = '';
   $('zive-info').hidden = true;
   $('cil-volba').hidden = true;
-  shot = ['inside', 'closed', 'done', 'result'].includes(p) ? 'box' : 'stage';
+  $('pece').hidden = p !== 'care';
+  tapHook = p === 'care' ? (k => k === 'stroke' ? pet() : tapThing(current)) : null;
+  shot = ['inside', 'closed', 'done', 'result'].includes(p) ? 'box' : p === 'care' ? 'care' : 'stage';
+  const entry = albumEntry(c);
+  if (entry) { ageCare(entry); const mon = c.obj.userData.monster; if (mon) mon.expr = { ...(mon.expr || {}), sad: !!entry.pece.bebi || moodOf(entry).avg < 25 }; }
+  const careBtn = entry && c.where === 'stage' ? action(`💗 Starat se o příšerku ${moodOf(entry).emoji}`, async () => setPhase('care')) : null;
   const other = action('🔄 Vybrat něco jiného', () => showPicker());
   if (p === 'stage') {
     title = `${c.name} čeká před krabicí`;
-    tip = 'Můžeš to prstem přetáhnout do krabice, nebo použít tlačítka.';
-    main = action('📦 Otevřít krabici', async () => { await setLid(true); setPhase('stageOpen'); });
-    extra = [other];
+    tip = 'Zatáhni víko prstem nahoru, nebo to rovnou přetáhni do krabice.';
+    main = action('📦 Otevřít krabici', LID_STEPS.stage);
+    extra = careBtn ? [careBtn, other] : [other];
+  } else if (p === 'care') {
+    const m = moodOf(entry), want = neediest(entry.pece);
+    title = `${c.monster.name} ${m.text} ${m.emoji}`;
+    tip = want ? `${want.want} Klepni na ${want.icon}. Můžeš ji i hladit prstem.` : 'Je spokojená! Můžeš ji hladit prstem.';
+    renderCare();
+    main = action('⬅️ Hotovo', async () => setPhase('stage'));
   } else if (p === 'stageOpen') {
     title = 'Krabice je otevřená!';
-    tip = 'Můžeš to prstem přetáhnout do krabice, nebo klepnout na tlačítko.';
+    tip = 'Přetáhni to prstem do krabice.';
     main = action('⬆️ Dát do krabice', async () => { await moveCurrent('box'); setPhase('inside'); });
     extra = [other];
   } else if (p === 'inside') {
     title = `${c.name} je v krabici`;
-    main = action('🔒 Zavřít víko', async () => { mistTarget = 0; await setLid(false); setPhase('closed'); });
+    tip = 'Stáhni víko prstem dolů. Nebo to vytáhni ven.';
+    main = action('🔒 Zavřít víko', LID_STEPS.inside);
     extra = [action('⬇️ Vyndat ven', async () => { await moveCurrent('stage'); await setLid(false); setPhase('stage'); })];
   } else if (p === 'closed') {
     title = c.living ? `${c.name} je v krabici` : 'Na co to proměníme?';
+    tip = c.living ? 'Přetáhni blesk na krabici!' : 'Přetáhni obrázek nebo blesk na krabici!';
     if (c.living) $('zive-info').hidden = false;
     else { $('cil-volba').hidden = false; renderTargets(); }
-    main = action('⚡ LASER! ⚡', async () => { const r = await zap(pickTarget()); lastBefore = r.before; setPhase('done'); }, 'laser');
-    extra = [action('📦 Otevřít', async () => { await setLid(true); setPhase('inside'); })];
+    main = action('⚡ LASER! ⚡', fireLaser, 'laser');
+    extra = [action('📦 Otevřít', LID_STEPS.closed)];
   } else if (p === 'done') {
     title = 'Hotovo! Co je uvnitř?';
-    main = action('📦 Otevřít krabici', async () => { await reveal(lastBefore); setPhase('result'); }, 'laser');
+    tip = 'Zatáhni víko nahoru!';
+    main = action('📦 Otevřít krabici', LID_STEPS.done, 'laser');
   } else if (p === 'result') {
     title = `Tadá! ${c.name}`;
-    main = action('✨ Zavřít a proměnit znovu', async () => { await sinkIntoBox(); mistTarget = 0; await setLid(false); setPhase('closed'); });
+    tip = 'Můžeš to vytáhnout ven, nebo stáhnout víko a kouzlit znovu.';
+    main = action('✨ Zavřít a proměnit znovu', LID_STEPS.result);
     extra = [action('⬇️ Vyndat ven', async () => { mistTarget = 0; await moveCurrent('stage'); await setLid(false); setPhase('stage'); }), other];
+    if (c.type === 'monster' && album.length >= MAX_MONSTERS && !albumEntry(c)) extra.push(action('🕊️ Udělat místo ve sbírce', async () => { releasing = true; renderAlbum(); $('album').hidden = false; setPhase('result'); }));
   }
   $('akce-nadpis').textContent = title;
   $('akce-tip').textContent = tip;
@@ -781,6 +1025,7 @@ function setPhase(p) {
   mb.textContent = main.label;
   mb.className = 'velke hlavni ' + main.cls;
   mb.onclick = () => run(main.fn);
+  mbDrop = p === 'closed' ? () => run(fireLaser) : null;
   const row = $('akce-dalsi');
   row.innerHTML = '';
   for (const a of extra) {
@@ -793,15 +1038,67 @@ function setPhase(p) {
   showStep('akce');
 }
 
-async function run(fn) {
+async function run(fn, { silent = false } = {}) {
   if (busy) return;
   initAudio();
-  play('tap');
+  if (!silent) play('tap');
   busy = true;
   hidePanel(true);
   hideBubble();
   try { await fn(); } finally { busy = false; }
 }
+
+// Dragging a button or picture from the panel onto the box (fires the laser).
+let mbDrop = null;
+function overBoxOnScreen(x, y) {
+  pointer.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pointer, camera);
+  return raycaster.intersectObject(box, true).length > 0;
+}
+function draggableToBox(el, getDrop) {
+  let st = null;
+  el.addEventListener('pointerdown', e => {
+    if (busy || !getDrop()) return;
+    st = { x: e.clientX, y: e.clientY, ghost: null, id: e.pointerId };
+    try { el.setPointerCapture(e.pointerId); } catch (_) { /* fine */ }
+  });
+  el.addEventListener('pointermove', e => {
+    if (!st || e.pointerId !== st.id) return;
+    if (!st.ghost) {
+      if (Math.hypot(e.clientX - st.x, e.clientY - st.y) < 14) return;
+      initAudio();
+      play('whoosh');
+      const r = el.getBoundingClientRect();
+      const g = el.cloneNode(true);
+      g.className = el.className + ' duch';
+      g.removeAttribute('id');
+      if (el.id === 'btn-hlavni') { g.textContent = '⚡'; g.style.fontSize = '54px'; g.style.padding = '0'; }
+      g.style.width = Math.min(r.width, 110) + 'px';
+      g.style.height = Math.min(r.height, 110) + 'px';
+      document.body.append(g);
+      st.ghost = g;
+    }
+    st.ghost.style.left = e.clientX + 'px';
+    st.ghost.style.top = e.clientY + 'px';
+    const over = overBoxOnScreen(e.clientX, e.clientY);
+    st.ghost.classList.toggle('nad', over);
+    box.userData.setCharge(over ? 0.6 : 0.1);
+  });
+  const end = e => {
+    if (!st || e.pointerId !== st.id) return;
+    const s = st; st = null;
+    if (!s.ghost) return;
+    s.ghost.remove();
+    el.dataset.pretazeno = '1'; // swallow the click that follows the drag
+    setTimeout(() => delete el.dataset.pretazeno, 50);
+    const drop = getDrop();
+    if (drop && overBoxOnScreen(e.clientX, e.clientY)) drop(); else play('boing');
+  };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+  el.addEventListener('click', e => { if (el.dataset.pretazeno) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+}
+draggableToBox($('btn-hlavni'), () => mbDrop);
 
 async function showPicker() {
   // Clear the box first if something is inside.
@@ -822,8 +1119,10 @@ async function choose(src) {
     await putOnStage(src);
   } finally { busy = false; }
   chosenTarget = { surprise: true };
-  speak(current.name);
   setPhase('stage');
+  const entry = albumEntry(current), want = entry && neediest(entry.pece);
+  if (want) { const t = `${current.monster.name}: ${want.want}`; showBubble(t + ' ' + want.icon); speak(t); }
+  else speak(current.name);
 }
 
 function showStep(which) {
@@ -854,11 +1153,288 @@ if (store.get('kk-ticho', false)) { setMuted(true); $('btn-zvuk').textContent = 
 $('btn-album').addEventListener('click', () => { initAudio(); play('tap'); renderAlbum(); $('album').hidden = false; });
 $('album-zavrit').addEventListener('click', () => { $('album').hidden = true; });
 $('album').addEventListener('click', e => { if (e.target.id === 'album') $('album').hidden = true; });
+let releasing = false;
+$('album-pustit').addEventListener('click', () => { play('tap'); releasing = !releasing; renderAlbum(); });
 function renderAlbum() {
   const grid = $('album-mrizka');
   grid.innerHTML = '';
+  $('album').classList.toggle('pousteni', releasing);
+  $('album-pustit').textContent = releasing ? '✅ Hotovo' : '🕊️ Pustit příšerku na svobodu';
+  $('album-napoveda').textContent = releasing ? 'Klepni na příšerku, kterou chceš pustit na svobodu.' : 'Klepni na příšerku a postav ji před krabici. Můžeš se o ni starat!';
+  $('album-pustit').hidden = !album.length;
   if (!album.length) { grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;opacity:.8">Zatím tu nic není. Dej do krabice něco živého!</p>'; return; }
-  for (const a of album) grid.append(tile({ label: a.name, img: a.thumb, onClick: () => { $('album').hidden = true; choose({ type: 'monster', monster: { seed: a.seed, name: a.name, tint: a.tint } }); } }));
+  for (const a of album) {
+    ageCare(a);
+    grid.append(tile({ label: `${a.name} ${moodOf(a).emoji}`, img: a.thumb, onClick: () => {
+      if (releasing) {
+        if (!confirm(`Opravdu pustit příšerku ${a.name} na svobodu? Už se nevrátí.`)) return;
+        album = album.filter(x => x !== a);
+        saveAlbum();
+        play('poof');
+        speak(`Ahoj, ${a.name}! Ať se ti daří!`);
+        if (current && current.type === 'monster' && current.monster.seed === a.seed) current.unsaved = true;
+        // a monster waiting for a free place joins now
+        if (current && current.type === 'monster' && current.unsaved && current.monster.seed !== a.seed) saveToAlbum(current).then(ok => ok && showBubble(`${current.monster.name} je teď ve sbírce! 💜`));
+        if (!album.length) releasing = false;
+        renderAlbum();
+        return;
+      }
+      $('album').hidden = true;
+      choose({ type: 'monster', monster: { seed: a.seed, name: a.name, tint: a.tint, gen: a.gen } });
+    } }));
+  }
+  saveAlbum();
+}
+
+// ---------- Caring for monsters ----------
+const NEEDS = [
+  { id: 'jidlo', icon: '🍎', label: 'Nakrmit', rate: 9, want: 'Mám hlad!' },
+  { id: 'piti', icon: '🥤', label: 'Napojit', rate: 11, want: 'Mám žízeň!' },
+  { id: 'spanek', icon: '😴', label: 'Uspat', rate: 6, want: 'Jsem ospalá…' },
+  { id: 'mazleni', icon: '🤗', label: 'Pomazlit', rate: 8, want: 'Pomazlíš se se mnou?' },
+  { id: 'hra', icon: '⚽', label: 'Hrát si', rate: 9, want: 'Nudím se! Pohraj si se mnou!' },
+  { id: 'zdravi', icon: '🩹', label: 'Utěšit', rate: 0, want: 'Něco mě bolí…' },
+];
+const BEBI = ['bříško', 'nožička', 'ručička', 'hlavička', 'ouško', 'zoubek'];
+function freshCare() { return { jidlo: 80, piti: 80, spanek: 80, mazleni: 70, hra: 70, zdravi: 100, bebi: null, cas: Date.now() }; }
+// Needs go down slowly in real time; now and then a monster bumps itself and needs comforting.
+function ageCare(a) {
+  a.pece ||= freshCare();
+  const p = a.pece, now = Date.now();
+  const hours = Math.max(0, (now - (p.cas || now)) / 3.6e6);
+  for (const n of NEEDS) if (n.rate) p[n.id] = Math.max(0, (p[n.id] ?? 80) - n.rate * hours);
+  if (!p.bebi && Math.random() < 1 - Math.pow(0.94, hours)) { p.bebi = BEBI[Math.floor(Math.random() * BEBI.length)]; p.zdravi = 25; }
+  p.cas = now;
+  return p;
+}
+function moodOf(a) {
+  const p = a.pece || freshCare();
+  const avg = NEEDS.reduce((s, n) => s + (p[n.id] ?? 80), 0) / NEEDS.length;
+  if (p.bebi) return { emoji: '🤕', avg, text: `má bebí, bolí ji ${p.bebi}` };
+  if (avg >= 75) return { emoji: '😄', avg, text: 'má skvělou náladu' };
+  if (avg >= 50) return { emoji: '🙂', avg, text: 'má dobrou náladu' };
+  if (avg >= 25) return { emoji: '😕', avg, text: 'nemá moc dobrou náladu' };
+  return { emoji: '😢', avg, text: 'je smutná' };
+}
+const albumEntry = c => c && c.type === 'monster' ? album.find(a => a.seed === c.monster.seed) : null;
+function neediest(p) {
+  if (p.bebi) return NEEDS[5];
+  let best = null;
+  for (const n of NEEDS.slice(0, 5)) if (p[n.id] < 50 && (!best || p[n.id] < p[best.id])) best = n;
+  return best;
+}
+
+// little 3D props and floating emoji for the care actions
+const emojiTexCache = {};
+function emojiSprite(ch, size = 0.18) {
+  if (!emojiTexCache[ch]) emojiTexCache[ch] = canvasTexture(ch);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTexCache[ch], transparent: true, depthWrite: false }));
+  sp.scale.setScalar(size);
+  return sp;
+}
+function canvasTexture(ch) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.font = '100px "Noto Color Emoji", "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (ch === 'Z') { g.font = '900 100px Nunito, sans-serif'; g.fillStyle = '#c9b6ff'; g.strokeStyle = '#3a1f63'; g.lineWidth = 8; g.strokeText('Z', 64, 70); }
+  g.fillText(ch, 64, 70);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const floaters = [];
+function floatUp(ch, from, { n = 1, spread = 0.25, rise = 0.8, life = 1.6, size = 0.18 } = {}) {
+  for (let i = 0; i < n; i++) {
+    const sp = emojiSprite(ch, size);
+    sp.position.copy(from).add(new THREE.Vector3((Math.random() - 0.5) * spread, Math.random() * 0.1, (Math.random() - 0.5) * spread * 0.5));
+    scene.add(sp);
+    floaters.push({ sp, t: -i * 0.18, life, rise, x0: sp.position.x, y0: sp.position.y, ph: Math.random() * 6 });
+  }
+}
+function updateFloaters(dt) {
+  for (let i = floaters.length - 1; i >= 0; i--) {
+    const f = floaters[i];
+    f.t += dt;
+    const k = f.t / f.life;
+    f.sp.visible = f.t > 0;
+    if (k >= 1) { scene.remove(f.sp); f.sp.material.dispose(); floaters.splice(i, 1); continue; }
+    if (f.t <= 0) continue;
+    f.sp.position.y = f.y0 + f.rise * k;
+    f.sp.position.x = f.x0 + Math.sin(f.t * 3 + f.ph) * 0.06;
+    f.sp.material.opacity = k < 0.15 ? k / 0.15 : 1 - Math.max(0, (k - 0.6) / 0.4);
+  }
+}
+function mouthPoint(c) {
+  const { c: ctr, s } = centerOf(c.obj);
+  return ctr.clone().add(new THREE.Vector3(0, s.y * 0.02, s.z * 0.5 + 0.05));
+}
+function makeFood() {
+  const g = new THREE.Group();
+  const apple = new THREE.Mesh(new THREE.SphereGeometry(0.08, 24, 16), new THREE.MeshPhysicalMaterial({ color: 0xe8332e, roughness: 0.35, clearcoat: 0.8 }));
+  apple.scale.set(1, 0.9, 1);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.05, 6), new THREE.MeshStandardMaterial({ color: 0x5a3a1a })); stem.position.y = 0.085;
+  const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.025, 10, 6), new THREE.MeshStandardMaterial({ color: 0x4caf50 })); leaf.scale.set(1, 0.3, 0.6); leaf.position.set(0.025, 0.1, 0);
+  g.add(apple, stem, leaf);
+  return g;
+}
+function makeGlass() {
+  const g = new THREE.Group();
+  const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.16, 24, 1, true), new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
+  const water = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.047, 0.12, 24), new THREE.MeshPhysicalMaterial({ color: 0x5ec8ff, roughness: 0.1, transparent: true, opacity: 0.8 }));
+  water.position.y = -0.015;
+  const straw = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.22, 8), new THREE.MeshStandardMaterial({ color: 0xff5fc8 })); straw.position.set(0.02, 0.06, 0); straw.rotation.z = -0.25;
+  g.add(glass, water, straw);
+  g.userData.water = water;
+  return g;
+}
+function makeBall() {
+  const tex = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 128; const x = c.getContext('2d');
+    ['#ff5f6d', '#ffd36e', '#5fd4a8', '#5f8dff', '#e57bff', '#ff9f7a'].forEach((col, i) => { x.fillStyle = col; x.fillRect(i * 256 / 6, 0, 256 / 6 + 1, 128); });
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+  const b = new THREE.Mesh(new THREE.SphereGeometry(0.11, 32, 20), new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.3, clearcoat: 0.8 }));
+  b.castShadow = true;
+  return b;
+}
+function makePlaster() {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 96;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f2c9a0'; g.beginPath(); g.roundRect(0, 0, 256, 96, 46); g.fill();
+  g.fillStyle = '#fbe3cc'; g.fillRect(88, 12, 80, 72);
+  g.fillStyle = '#e8b48a'; for (let x = 20; x < 80; x += 14) for (let y = 30; y < 70; y += 14) { g.beginPath(); g.arc(x, y, 3, 0, 7); g.arc(x + 160, y, 3, 0, 7); g.fill(); }
+  g.fillStyle = '#ff6b8b'; g.font = '50px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('♥', 128, 50);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.083), new THREE.MeshStandardMaterial({ map: t, transparent: true, roughness: 0.8, side: THREE.DoubleSide }));
+}
+function startPos() { return camera.position.clone().add(new THREE.Vector3(0, -0.9, -0.6)); }
+async function flyTo(obj, from, to, dur = 0.8, arc = 0.4) {
+  scene.add(obj);
+  await animate(dur, k => { const e = ease.inOut(k); obj.position.lerpVectors(from, to, e); obj.position.y += Math.sin(e * Math.PI) * arc; obj.rotation.y = e * 4; });
+}
+const hop = (o, h = 0.15, d = 0.4) => animate(d, k => { o.position.y = Math.sin(k * Math.PI) * h; const q = 1 + Math.sin(k * Math.PI * 2) * 0.06; o.scale.set(1 / Math.sqrt(q), q, 1 / Math.sqrt(q)); }).then(() => { o.position.y = 0; o.scale.setScalar(1); });
+
+const CARE = {
+  async jidlo(c) {
+    const food = makeFood(), to = mouthPoint(c);
+    await flyTo(food, startPos(), to);
+    play('mnam');
+    await animate(0.66, k => { food.scale.setScalar(1 - k); if (Math.random() < 0.3) sparkles.userData.emit(to, 2, 0.5, 0.05); });
+    scene.remove(food); disposeObj(food);
+    await hop(c.bounce, 0.1);
+    return 'Mňam, to bylo dobré!';
+  },
+  async piti(c) {
+    const gl = makeGlass(), to = mouthPoint(c).add(new THREE.Vector3(0.05, -0.05, 0.05));
+    await flyTo(gl, startPos(), to, 0.8, 0.3);
+    play('glo');
+    await animate(1.0, k => { gl.userData.water.scale.y = 1 - k * 0.9; gl.userData.water.position.y = -0.015 - k * 0.054; gl.rotation.z = Math.sin(k * Math.PI) * 0.3; });
+    await animate(0.4, k => { gl.scale.setScalar(1 - k); });
+    scene.remove(gl); disposeObj(gl);
+    return 'Ááá, to osvěží!';
+  },
+  async spanek(c) {
+    const mon = c.obj.userData.monster;
+    const k0 = key.intensity, f0 = fill.intensity, e0 = scene.environmentIntensity;
+    await animate(0.8, k => { key.intensity = k0 * (1 - 0.75 * k); fill.intensity = f0 * (1 - 0.6 * k); scene.environmentIntensity = e0 * (1 - 0.6 * k); });
+    if (mon) mon.expr = { ...(mon.expr || {}), sleep: true };
+    const head = () => centerOf(c.obj).c.add(new THREE.Vector3(0.15, 0.3, 0));
+    for (let i = 0; i < 3; i++) { play('zzz'); floatUp('Z', head(), { n: 2, size: 0.14 + i * 0.03, life: 1.6 }); await animate(1.3, k => { c.bounce.scale.set(1 + Math.sin(k * Math.PI) * 0.03, 1 - Math.sin(k * Math.PI) * 0.03, 1); }); }
+    if (mon) mon.expr = { ...(mon.expr || {}), sleep: false };
+    await animate(0.8, k => { key.intensity = k0 * (0.25 + 0.75 * k); fill.intensity = f0 * (0.4 + 0.6 * k); scene.environmentIntensity = e0 * (0.4 + 0.6 * k); });
+    key.intensity = k0; fill.intensity = f0; scene.environmentIntensity = e0;
+    await animate(0.7, k => { const s = Math.sin(k * Math.PI); c.bounce.scale.set(1 - s * 0.05, 1 + s * 0.15, 1 - s * 0.05); });
+    return 'Dobré ráno! Krásně jsem se vyspala.';
+  },
+  async mazleni(c) {
+    play('love');
+    floatUp('💖', centerOf(c.obj).c.add(new THREE.Vector3(0, 0.25, 0.2)), { n: 6, spread: 0.5 });
+    await animate(1.8, k => { c.bounce.rotation.z = Math.sin(k * Math.PI * 6) * 0.12 * (1 - k); });
+    c.bounce.rotation.z = 0;
+    return 'Mám tě moc ráda!';
+  },
+  async hra(c) {
+    const ball = makeBall();
+    const ground = c.holder.getWorldPosition(new THREE.Vector3());
+    const side = ground.clone().add(new THREE.Vector3(0.75, 0.11, 0.25)), other = ground.clone().add(new THREE.Vector3(-0.75, 0.11, 0.25));
+    await flyTo(ball, startPos(), side, 0.7, 0.5);
+    for (let i = 0; i < 3; i++) {
+      const [a, b] = i % 2 ? [other, side] : [side, other];
+      play('boing');
+      await Promise.all([
+        animate(0.7, k => { ball.position.lerpVectors(a, b, k); ball.position.y += Math.sin(k * Math.PI) * 0.7; ball.rotation.z -= 0.2; }),
+        hop(c.bounce, 0.3, 0.7),
+      ]);
+    }
+    await animate(0.4, k => { ball.scale.setScalar(1 - k); });
+    scene.remove(ball); disposeObj(ball);
+    return 'Juchů, to byla zábava!';
+  },
+  async zdravi(c, a) {
+    const p = a.pece;
+    if (!p.bebi) {
+      play('love');
+      floatUp('💖', centerOf(c.obj).c.add(new THREE.Vector3(0, 0.25, 0.2)), { n: 3 });
+      p.mazleni = Math.min(100, p.mazleni + 15);
+      return 'Nic mě nebolí, ale pofoukání je stejně fajn!';
+    }
+    const where = p.bebi;
+    const pl = makePlaster();
+    const { c: ctr, s } = centerOf(c.obj);
+    const to = ctr.clone().add(new THREE.Vector3(s.x * 0.18, -s.y * 0.12, s.z * 0.5 + 0.02));
+    await flyTo(pl, startPos(), to, 0.7, 0.2);
+    pl.rotation.set(0, 0, 0.4);
+    play('bandage');
+    floatUp('💖', to.clone().add(new THREE.Vector3(0, 0.1, 0)), { n: 4 });
+    c.bounce.attach(pl);
+    setTimeout(() => { const pm = pl.material; animate(1, k => { pm.opacity = 1 - k; }).then(() => { pl.removeFromParent(); }); }, 6000);
+    p.bebi = null;
+    return `Děkuju! Moje ${where} už nebolí.`;
+  },
+};
+
+let careBusy = false;
+async function doCare(need) {
+  const c = current, a = albumEntry(c);
+  if (!a || careBusy) return;
+  careBusy = true;
+  busy = true;
+  hideBubble();
+  try {
+    ageCare(a);
+    const say = await CARE[need.id](c, a);
+    a.pece[need.id] = need.id === 'zdravi' ? 100 : Math.min(100, a.pece[need.id] + 45);
+    saveAlbum();
+    showBubble(say); speak(say);
+  } finally { careBusy = false; busy = false; }
+  if (phase === 'care') setPhase('care');
+}
+let lastStroke = 0;
+function pet() {
+  const c = current, a = albumEntry(c);
+  if (!a || careBusy) return;
+  const now = performance.now();
+  if (now - lastStroke < 180) return;
+  lastStroke = now;
+  ageCare(a);
+  a.pece.mazleni = Math.min(100, a.pece.mazleni + 3);
+  floatUp('💖', centerOf(c.obj).c.add(new THREE.Vector3((Math.random() - 0.5) * 0.3, 0.2, 0.2)), { n: 1, size: 0.12 });
+  if (Math.random() < 0.25) play('love');
+  c.bounce.rotation.z = (Math.random() - 0.5) * 0.12;
+  clearTimeout(pet.t); pet.t = setTimeout(() => { c.bounce.rotation.z = 0; saveAlbum(); if (phase === 'care') renderCare(); }, 600);
+}
+function renderCare() {
+  const a = albumEntry(current), box_ = $('pece');
+  box_.innerHTML = '';
+  if (!a) return;
+  const want = neediest(a.pece);
+  for (const n of NEEDS) {
+    const v = Math.round(a.pece[n.id] ?? 80);
+    const t = tile({ label: n.label, icon: n.icon, onClick: () => doCare(n) });
+    const bar = document.createElement('div'); bar.className = 'lista';
+    bar.innerHTML = `<i style="width:${Math.max(4, v)}%;background-position:${v}% 0"></i>`;
+    t.append(bar);
+    if (want === n) t.classList.add('chce');
+    box_.append(t);
+  }
 }
 
 // Photos: shrink to a 512px square, remember the average colour for tinting monsters.
@@ -956,7 +1532,7 @@ async function start() {
   checkForUpdate();
 
   if (params.has('nahledy')) { window.__kk = { ITEMS, putOnStage, spinner, camera, renderer, resize }; $('nacitani').classList.add('pryc'); return; }
-  if (params.has('demo')) { window.__kk = { choose, putOnStage, current: () => current, ITEMS, newMonsterSpec, setPhase, phase: () => phase,
+  if (params.has('demo')) { window.__kk = { choose, putOnStage, current: () => current, ITEMS, newMonsterSpec, setPhase, phase: () => phase, startSpecial, album: () => album, setAlbum: a => { album = a; saveAlbum(); },
     screen: which => { const v = (which === 'box' ? box.localToWorld(new THREE.Vector3(0, 0.9, 0)) : centerOf(current.obj).c).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; } }; }
 
   $('start').hidden = false;

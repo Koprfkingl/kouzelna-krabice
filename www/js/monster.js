@@ -1,20 +1,21 @@
 // Cute monster generator. A seed always gives the same monster, so the album can store just the seed.
 import * as THREE from 'three';
 import { monsterName } from './catalog.js';
+import { makeMonster2 } from './monster2.js';
 
 export function rng(seed) {
   let s = seed >>> 0 || 1;
   return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
 }
 
-const PALETTE = [0xff8fb8, 0x8fd3ff, 0xa8f0a0, 0xffd36e, 0xc7a2ff, 0xff9f7a, 0x7ff0e0, 0xffb3e6, 0x9fb8ff, 0xf6f08a];
+export const PALETTE = [0xff8fb8, 0x8fd3ff, 0xa8f0a0, 0xffd36e, 0xc7a2ff, 0xff9f7a, 0x7ff0e0, 0xffb3e6, 0x9fb8ff, 0xf6f08a];
 
 // Smooth noise for bumping the body shape.
-function vnoise(x, y, z, r) {
+export function vnoise(x, y, z, r) {
   return Math.sin(x * r[0] + r[3]) * Math.sin(y * r[1] + r[4]) * Math.sin(z * r[2] + r[5]);
 }
 
-function canvasTex(w, h, draw, srgb = true) {
+export function canvasTex(w, h, draw, srgb = true) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   draw(c.getContext('2d'), w, h);
@@ -24,7 +25,7 @@ function canvasTex(w, h, draw, srgb = true) {
   return t;
 }
 
-function eyeTexture(iris, rand) {
+export function eyeTexture(iris, rand) {
   return canvasTex(512, 256, (g, w, h) => {
     g.fillStyle = '#fbfbf8'; g.fillRect(0, 0, w, h);
     // faint veins-free sclera shading
@@ -73,7 +74,7 @@ function furNoiseTexture() {
 }
 let FUR_TEX = null;
 
-function makeFur(geometry, color, len, shells, density) {
+export function makeFur(geometry, color, len, shells, density) {
   if (!FUR_TEX) {
     FUR_TEX = furNoiseTexture();
     FUR_TEX.wrapS = FUR_TEX.wrapT = THREE.RepeatWrapping;
@@ -112,6 +113,12 @@ function makeFur(geometry, color, len, shells, density) {
 }
 
 export function makeMonster(seed, opts = {}) {
+  if (opts.gen === 2) return makeMonster2(seed, opts);
+  return makeMonsterV1(seed, opts);
+}
+
+// The first generation (kept as it was, so monsters already in the album keep their looks).
+function makeMonsterV1(seed, opts = {}) {
   const rand = rng(seed);
   const r = () => rand();
   const pick = a => a[Math.floor(r() * a.length)];
@@ -213,6 +220,7 @@ export function makeMonster(seed, opts = {}) {
   mouth.lookAt(mouth.position.clone().add(ms.n));
   mouth.rotateZ(Math.PI);
   monster.add(mouth);
+  const mouthQ = mouth.quaternion.clone(), sadQ = mouthQ.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI));
   const extra = pick(['tooth', 'tongue', 'teeth', 'none']);
   const toothMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.2, clearcoat: 1 });
   if (extra === 'tooth' || extra === 'teeth') {
@@ -315,12 +323,15 @@ export function makeMonster(seed, opts = {}) {
     update(t, camPos) {
       const bob = Math.sin(t * 2.2 + phase);
       bodyGroup.scale.set(1 + bob * 0.02, 1 - bob * 0.025, 1 + bob * 0.02);
+      const ex = this.expr || {};
+      const es = ex.eyeScale || 1, shut = ex.closed || ex.sleep;
       for (const e of eyes) {
         // Blink by squashing the eye for a moment.
-        const b = t > blinkAt.t && t < blinkAt.t + 0.14 ? 0.1 : 1;
-        e.scale.set(1, b, 1);
+        const b = shut || (t > blinkAt.t && t < blinkAt.t + 0.14) ? 0.1 : 1;
+        e.scale.set(es, b * es, es);
         if (camPos) e.lookAt(camPos); // the iris is painted on the +z side of the eyeball
       }
+      mouth.quaternion.copy(ex.sad ? sadQ : mouthQ);
       if (t > blinkAt.t + 0.14) blinkAt.t = t + 2 + Math.random() * 3;
       for (const a of arms) a.rotation.z = a.userData.side * (0.5 + 0.25 * Math.sin(t * 3 + phase + a.userData.side));
       for (const d of decoObjs) d.rotation.x = 0.06 * Math.sin(t * 2.5 + phase);

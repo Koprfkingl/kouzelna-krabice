@@ -176,6 +176,7 @@ export function makeBox(tex) {
     top: TOP,
     inside,
     insideFit: 0.62,
+    lid: lidPivot,
     lensLocal: new THREE.Vector3(0, LY, D / 2 + 0.08),
     setCharge(k) {
       crystalMat.emissiveIntensity = 0.4 + k * 5;

@@ -50,6 +50,7 @@
       <nav class="zalozky" id="zalozky-cil"></nav>
       <div class="mrizka" id="mrizka-cil"></div>
     </div>
+    <div id="pece" class="mrizka tri pece" hidden></div>
     <button id="btn-hlavni" class="velke hlavni"></button>
     <div class="radek tlacitka" id="akce-dalsi"></div>
   </div>
@@ -57,8 +58,9 @@
 
 <div id="album" class="okno" hidden>
   <div class="okno-obsah">
-    <div class="radek"><h2>Moje příšerky</h2><button id="album-zavrit" class="kulate">✕</button></div>
-    <p class="napoveda">Klepni na příšerku a postav ji před krabici.</p>
+    <div class="radek"><h2>Moje příšerky <span id="album-stav" class="verze"></span></h2><button id="album-zavrit" class="kulate">✕</button></div>
+    <p class="napoveda" id="album-napoveda">Klepni na příšerku a postav ji před krabici. Můžeš se o ni starat!</p>
+    <div class="radek tlacitka"><button id="album-pustit" class="male">🕊️ Pustit příšerku na svobodu</button></div>
     <div class="mrizka" id="album-mrizka"></div>
   </div>
 </div>

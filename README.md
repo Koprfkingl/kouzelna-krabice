@@ -4,11 +4,13 @@ Hra pro Marušku. Kouzelná krabice stojí v dětském pokojíčku a laserem pro
 
 Každý krok kouzla je jedno tlačítko: **otevřít krabici → dát věc dovnitř → zavřít víko → LASER** (paprsky prosvítají škvírou pod víkem) **→ otevřít**. Uvnitř v lehké mlze čeká výsledek.
 
-- **Živé bytosti** (liška, ryba, kytka, příšerky a vyfocená zvířátka) krabice promění vždycky na **náhodnou roztomilou příšerku**. Každá je jiná: chlupatá, sametová, želatinová nebo puntíkatá, s jedním až třemi očima, růžky, oušky nebo tykadly.
+- **Živé bytosti** (liška, ryba, kytka, příšerky a vyfocená zvířátka) krabice promění vždycky na **náhodnou roztomilou příšerku**. Každá je jiná: kulatá, vajíčková, hruškovitá, vysoká nebo placatá; chlupatá, pruhovaná, šupinatá, puntíkatá, perleťová nebo želatinová; s jedním až pěti očima (nebo očima na stopkách), s rohy, oušky, tykadly, chapadly, křidýlky, ocáskem, motýlkem nebo čepičkou.
 - **Věci a stroje** se dají proměnit na cokoliv: jinou věc, stroj, zvířátko, příšerku, fotku, nebo na „Překvapení“.
 - **Fotky**: tlačítkem 📸 vyfotíš cokoliv doma, řekneš, jestli je to živé, věc, nebo stroj, a dáš to před krabici.
-- **Sbírka příšerek** (📖): každá nová příšerka se uloží. Klepnutím ji zase postavíš před krabici.
-- Klepnutí na věc před krabicí ji rozpohybuje: rádio hraje, lampa svítí, fotoaparát blýskne, autíčko se otočí, příšerka se zachichotá.
+- **Každý krok jde udělat prstem**: víko se otevře tahem nahoru a zavře tahem dolů, věci se přetahují do krabice i ven a laser spustíš přetažením blesku (nebo obrázku, na co se má věc proměnit) na krabici. Tlačítka fungují pořád taky.
+- **Sbírka příšerek** (📖): každá nová příšerka se uloží, nejvýš 21. Když je sbírka plná, můžeš některou pustit na svobodu.
+- **Péče o příšerky**: příšerku ze sbírky můžeš nakrmit, napojit, uspat, pomazlit (i hlazením prstem), hrát si s ní a utěšit ji, když ji něco bolí. Potřeby jí pomalu ubývají i když hra neběží.
+- Klepnutí na věc před krabicí ji rozpohybuje: rádio hraje, lampa svítí, fotoaparát blýskne, autíčko se otočí, příšerka se zachichotá. Kdo kliká jako o závod, dočká se sedmi různých legračních reakcí.
 - Hra mluví česky (hlasem telefonu) a funguje bez internetu.
 - Aplikace si při spuštění zkontroluje, jestli na GitHubu není novější verze, a nabídne její stažení.
 
@@ -51,7 +53,7 @@ Secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_AL
 - `www/index.html`, `www/styles.css`: obrazovka a ovládání
 - `www/js/main.js`: scéna, světla, průběh proměny, ovládání, sbírka, fotky
 - `www/js/box.js`: kouzelná krabice, laserový paprsek a jiskry
-- `www/js/monster.js`: generátor příšerek
+- `www/js/monster.js`, `www/js/monster2.js`: generátory příšerek (první generace zůstává kvůli uloženým příšerkám)
 - `www/js/dissolve.js`: efekt rozpouštění laserem
 - `www/js/catalog.js`: seznam věcí, zvířat a strojů
 - `www/js/audio.js`: zvuky (syntetizované, bez souborů)

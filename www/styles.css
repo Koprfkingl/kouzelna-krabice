@@ -91,3 +91,23 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 .verze { opacity: .5; font-size: 13px; }
 #aktualizace .tlacitka { gap: 10px; }
 .krok p.tip { font-size: 15px; opacity: .85; margin: -4px 8px 4px; }
+
+/* Target pictures sit in one row that scrolls sideways, so an upward drag can carry a picture to the box. */
+#mrizka-cil { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 23%; overflow-x: auto; overflow-y: hidden; max-height: none; }
+#mrizka-cil .dlazdice { touch-action: pan-x; }
+#btn-hlavni { touch-action: none; }
+.duch { position: fixed !important; z-index: 40; pointer-events: none; transform: translate(-50%, -60%) scale(1.15) rotate(-4deg); opacity: .92;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5); transition: transform .12s; margin: 0 !important; aspect-ratio: auto; }
+.duch.nad { transform: translate(-50%, -60%) scale(1.35) rotate(4deg); box-shadow: 0 0 34px rgba(255,95,200,.95); }
+
+/* Care for monsters */
+.pece { margin-bottom: 4px; }
+.pece .dlazdice { aspect-ratio: auto; padding: 8px 4px; justify-content: center; gap: 3px; font-size: 15px; }
+.pece .dlazdice .ikona { font-size: 32px; margin: 0; }
+.pece .dlazdice.chce { border-color: var(--ruzova); animation: chce 1.2s ease-in-out infinite; }
+@keyframes chce { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+.lista { width: 86%; height: 7px; border-radius: 9px; background: rgba(255,255,255,.15); overflow: hidden; }
+.lista i { display: block; height: 100%; border-radius: 9px; background: linear-gradient(90deg, #ff6b8b, #ffd36e, #7be38a); background-size: 300% 100%; transition: width .5s; }
+#album-pustit { margin: 0 auto 12px; }
+#album.pousteni .dlazdice { border-color: #9be7ff; }
+#album.pousteni .dlazdice::after { content: '🕊️'; position: absolute; top: 4px; right: 6px; font-size: 22px; z-index: 2; }
