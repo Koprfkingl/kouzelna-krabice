@@ -1,0 +1,68 @@
+# Sestaví Android APK. Pushni tag jako v1.0.1 nebo klikni na "Run workflow" a APK se objeví v sekci Releases.
+name: Sestavení APK
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Verze
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "VERSION_NAME=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV; else echo "VERSION_NAME=$(node -p "require('./package.json').version")" >> $GITHUB_ENV; fi
+      - run: npm ci
+      - run: npm run android:sync
+      - name: Podpisový klíč z tajných proměnných
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > android/app/release.jks
+            printf "storeFile=release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" "$KS_PASS" "$KS_ALIAS" "$KS_PASS" > android/keystore.properties
+            echo "APK_KIND=release" >> $GITHUB_ENV
+          else
+            echo "::warning::Chybí tajné proměnné ANDROID_KEYSTORE_*, sestavuji ladicí (debug) APK."
+            echo "APK_KIND=debug" >> $GITHUB_ENV
+          fi
+      - name: Gradle
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          if [ "$APK_KIND" = release ]; then ./gradlew assembleRelease --no-daemon; else ./gradlew assembleDebug --no-daemon; fi
+      - name: Přejmenovat APK
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/$APK_KIND/app-$APK_KIND.apk "out/kouzelna-krabice-${VERSION_NAME}.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: out/*.apk
+      - name: Vydání
+        if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION_NAME }}
+          target_commitish: ${{ github.sha }}
+          files: out/*.apk
+          body: |
+            Stáhni `.apk` do telefonu s Androidem a otevři ho. Poprvé je potřeba povolit instalaci z neznámých zdrojů.

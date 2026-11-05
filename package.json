@@ -1,0 +1,26 @@
+{
+  "name": "kouzelna-krabice",
+  "productName": "Kouzelná krabice",
+  "version": "1.0.0",
+  "description": "Hra pro Marušku: kouzelná krabice, která laserem promění cokoliv na cokoliv",
+  "author": "Koprfkingl",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "vendor": "node scripts/vendor.mjs",
+    "models": "node scripts/models.mjs",
+    "android:sync": "npm run vendor && cap sync android",
+    "android:build": "npm run android:sync && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor-community/text-to-speech": "8.0.2",
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2",
+    "three": "0.181.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "3.0.5",
+    "@capacitor/cli": "8.5.2",
+    "@gltf-transform/cli": "4.2.1"
+  }
+}

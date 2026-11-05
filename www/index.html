@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Kouzelná krabice</title>
+<link rel="stylesheet" href="styles.css">
+<script src="tts-android.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three/build/three.module.min.js",
+  "three/addons/": "./vendor/three/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<canvas id="scena"></canvas>
+
+<div id="nacitani">
+  <div class="logo">✨📦✨</div>
+  <h1>Kouzelná krabice</h1>
+  <div class="bar"><div id="nacitani-bar"></div></div>
+  <button id="start" class="velke" hidden>▶ Hrát</button>
+</div>
+
+<header id="horni">
+  <button id="btn-album" class="kulate" aria-label="Sbírka příšerek">📖<span id="album-pocet">0</span></button>
+  <div id="titulek">Kouzelná krabice</div>
+  <button id="btn-zvuk" class="kulate" aria-label="Zvuk">🔊</button>
+</header>
+
+<div id="bublina" hidden></div>
+
+<section id="panel">
+  <!-- Krok 1: co dát před krabici -->
+  <div id="krok-vyber" class="krok">
+    <h2 id="vyber-nadpis">Co dáme před krabici?</h2>
+    <nav class="zalozky" id="zalozky-zdroj"></nav>
+    <div class="mrizka" id="mrizka-zdroj"></div>
+  </div>
+
+  <!-- Krok 2: na co to proměnit -->
+  <div id="krok-cil" class="krok" hidden>
+    <div class="radek">
+      <button id="btn-zpet" class="male">↩ Jiné</button>
+      <h2 id="cil-nadpis">Na co to proměníme?</h2>
+    </div>
+    <p id="zive-info" hidden>Živé bytosti krabice promění na <b>roztomilou příšerku</b>! Jakou? To je překvapení…</p>
+    <div id="cil-volba">
+      <nav class="zalozky" id="zalozky-cil"></nav>
+      <div class="mrizka" id="mrizka-cil"></div>
+    </div>
+    <button id="btn-laser" class="velke laser">⚡ LASER! ⚡</button>
+  </div>
+
+  <!-- Krok 3: výsledek -->
+  <div id="krok-vysledek" class="krok" hidden>
+    <h2 id="vysledek-text"></h2>
+    <div class="radek tlacitka">
+      <button id="btn-znovu" class="velke">✨ Proměnit znovu</button>
+      <button id="btn-nove" class="velke druhe">🏠 Něco jiného</button>
+    </div>
+  </div>
+</section>
+
+<div id="album" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>Moje příšerky</h2><button id="album-zavrit" class="kulate">✕</button></div>
+    <p class="napoveda">Klepni na příšerku a postav ji před krabici.</p>
+    <div class="mrizka" id="album-mrizka"></div>
+  </div>
+</div>
+
+<div id="foto-dotaz" class="okno" hidden>
+  <div class="okno-obsah">
+    <img id="foto-nahled" alt="">
+    <h2>Co jsi vyfotila?</h2>
+    <div class="mrizka tri">
+      <button class="dlazdice" data-druh="zive"><span class="ikona">🐾</span>Něco živého</button>
+      <button class="dlazdice" data-druh="veci"><span class="ikona">🧸</span>Věc</button>
+      <button class="dlazdice" data-druh="stroje"><span class="ikona">⚙️</span>Stroj</button>
+    </div>
+    <button id="foto-zrusit" class="male">Zrušit</button>
+  </div>
+</div>
+
+<input id="foto-vstup" type="file" accept="image/*" capture="environment" hidden>
+<div id="blesk"></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
