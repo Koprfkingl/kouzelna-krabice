@@ -1,6 +1,8 @@
 # Kouzelná krabice ✨📦
 
-Hra pro Marušku. Před kouzelnou krabici postavíš cokoliv a krabice to laserem promění na cokoliv jiného.
+Hra pro Marušku. Kouzelná krabice stojí v dětském pokojíčku a laserem promění cokoliv na cokoliv jiného.
+
+Každý krok kouzla je jedno tlačítko: **otevřít krabici → dát věc dovnitř → zavřít víko → LASER** (paprsky prosvítají škvírou pod víkem) **→ otevřít**. Uvnitř v lehké mlze čeká výsledek.
 
 - **Živé bytosti** (liška, ryba, kytka, příšerky a vyfocená zvířátka) krabice promění vždycky na **náhodnou roztomilou příšerku**. Každá je jiná: chlupatá, sametová, želatinová nebo puntíkatá, s jedním až třemi očima, růžky, oušky nebo tykadly.
 - **Věci a stroje** se dají proměnit na cokoliv: jinou věc, stroj, zvířátko, příšerku, fotku, nebo na „Překvapení“.
@@ -8,6 +10,9 @@ Hra pro Marušku. Před kouzelnou krabici postavíš cokoliv a krabice to lasere
 - **Sbírka příšerek** (📖): každá nová příšerka se uloží. Klepnutím ji zase postavíš před krabici.
 - Klepnutí na věc před krabicí ji rozpohybuje: rádio hraje, lampa svítí, fotoaparát blýskne, autíčko se otočí, příšerka se zachichotá.
 - Hra mluví česky (hlasem telefonu) a funguje bez internetu.
+- Aplikace si při spuštění zkontroluje, jestli na GitHubu není novější verze, a nabídne její stažení.
+
+Hra jde hrát i v prohlížeči: https://koprfkingl.github.io/kouzelna-krabice/ (v repu musí být zapnuté GitHub Pages z větve `gh-pages`).
 
 ## Ke stažení
 
@@ -24,10 +29,9 @@ Kompromisy: liška je nízkopolygonový model (realistické volně licencované 
 ## Nová verze
 
 1. Uprav hru ve složce `www/` (obyčejná webová stránka). Pro zkoušení v počítači: `npm install`, `npm run vendor` a pak třeba `python3 -m http.server -d www` a otevři http://localhost:8000.
-2. Zvyš `version` v `package.json`.
-3. Pushni tag, třeba `git tag v1.0.1 && git push --tags`, nebo v GitHubu otevři Actions → „Sestavení APK“ → Run workflow.
+2. Zvyš `version` v `package.json` a pushni do `main`.
 
-GitHub Actions sestaví APK a přiloží ho k vydání.
+GitHub Actions sestaví APK a protože je verze nová, samo vytvoří vydání. Aplikace v telefonu ho při dalším spuštění najde a nabídne.
 
 ## Podpis pro Android
 

@@ -73,6 +73,13 @@ export const sfx = {
   liska() { tone({ type: 'sawtooth', f0: 900, f1: 500, t: 0.25, v: 0.12 }); tone({ type: 'sawtooth', f0: 1000, f1: 600, t: 0.2, v: 0.1, at: 0.3 }); },
   ryba() { for (let i = 0; i < 4; i++) tone({ type: 'sine', f0: 300 + i * 120, f1: 900 + i * 150, t: 0.08, v: 0.2, at: i * 0.12 }); },
   shutter() { this.fotak(); },
+  kun() { [0, 0.12, 0.24, 0.36].forEach((t, i) => noise({ t: 0.06, v: 0.35, freq: 900 - i * 80, at: t })); tone({ type: 'sawtooth', f0: 700, f1: 300, t: 0.5, v: 0.08, at: 0.5 }); },
+  ptak() { for (let i = 0; i < 6; i++) tone({ type: 'sine', f0: 2400 + Math.random() * 800, f1: 3400, t: 0.07, v: 0.12, at: i * 0.09 }); },
+  robot() { [440, 660, 550, 880].forEach((f, i) => tone({ type: 'square', f0: f, t: 0.1, v: 0.07, at: i * 0.11 })); },
+  lid() { noise({ t: 0.25, v: 0.15, freq: 400, q: 2 }); tone({ type: 'sine', f0: 180, f1: 120, t: 0.25, v: 0.15 }); },
+  thump() { tone({ type: 'sine', f0: 120, f1: 50, t: 0.25, v: 0.45 }); noise({ t: 0.1, v: 0.2, freq: 300 }); },
+  whoosh() { noise({ t: 0.5, v: 0.25, freq: 600, f1: 2500, q: 1.5 }); },
+  zap() { tone({ type: 'square', f0: 1800 + Math.random() * 800, f1: 300, t: 0.12, v: 0.06 }); },
 };
 
-export function play(name) { if (sfx[name]) sfx[name](); }
+export function play(name, ...args) { if (sfx[name]) sfx[name](...args); }

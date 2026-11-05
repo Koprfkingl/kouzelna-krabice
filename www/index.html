@@ -21,6 +21,7 @@
   <h1>Kouzelná krabice</h1>
   <div class="bar"><div id="nacitani-bar"></div></div>
   <button id="start" class="velke" hidden>▶ Hrát</button>
+  <div id="verze" class="verze"></div>
 </div>
 
 <header id="horni">
@@ -28,6 +29,7 @@
   <div id="titulek">Kouzelná krabice</div>
   <button id="btn-zvuk" class="kulate" aria-label="Zvuk">🔊</button>
 </header>
+<button id="btn-aktualizace" class="aktualizace" hidden></button>
 
 <div id="bublina" hidden></div>
 
@@ -39,27 +41,16 @@
     <div class="mrizka" id="mrizka-zdroj"></div>
   </div>
 
-  <!-- Krok 2: na co to proměnit -->
-  <div id="krok-cil" class="krok" hidden>
-    <div class="radek">
-      <button id="btn-zpet" class="male">↩ Jiné</button>
-      <h2 id="cil-nadpis">Na co to proměníme?</h2>
-    </div>
+  <!-- Krok 2: jednotlivé kroky kouzla, každý jedním tlačítkem -->
+  <div id="krok-akce" class="krok" hidden>
+    <h2 id="akce-nadpis"></h2>
     <p id="zive-info" hidden>Živé bytosti krabice promění na <b>roztomilou příšerku</b>! Jakou? To je překvapení…</p>
-    <div id="cil-volba">
+    <div id="cil-volba" hidden>
       <nav class="zalozky" id="zalozky-cil"></nav>
       <div class="mrizka" id="mrizka-cil"></div>
     </div>
-    <button id="btn-laser" class="velke laser">⚡ LASER! ⚡</button>
-  </div>
-
-  <!-- Krok 3: výsledek -->
-  <div id="krok-vysledek" class="krok" hidden>
-    <h2 id="vysledek-text"></h2>
-    <div class="radek tlacitka">
-      <button id="btn-znovu" class="velke">✨ Proměnit znovu</button>
-      <button id="btn-nove" class="velke druhe">🏠 Něco jiného</button>
-    </div>
+    <button id="btn-hlavni" class="velke hlavni"></button>
+    <div class="radek tlacitka" id="akce-dalsi"></div>
   </div>
 </section>
 
@@ -81,6 +72,17 @@
       <button class="dlazdice" data-druh="stroje"><span class="ikona">⚙️</span>Stroj</button>
     </div>
     <button id="foto-zrusit" class="male">Zrušit</button>
+  </div>
+</div>
+
+<div id="aktualizace" class="okno" hidden>
+  <div class="okno-obsah">
+    <h2>🎁 Nová verze</h2>
+    <p id="aktualizace-text" class="napoveda"></p>
+    <div class="radek tlacitka">
+      <button id="aktualizace-ano" class="velke">Stáhnout</button>
+      <button id="aktualizace-ne" class="velke druhe">Teď ne</button>
+    </div>
   </div>
 </div>
 

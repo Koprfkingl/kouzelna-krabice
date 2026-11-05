@@ -20,10 +20,26 @@
 | Autíčko | ToyCar | CC0 | Public domain |
 | Lednice | CommercialRefrigerator | CC BY 4.0 | Darmstadt Graphics Group GmbH, Sean Thomas |
 | Lampa | AnisotropyBarnLamp | CC BY 4.0 | Wayfair, LLC |
+| Mandarinka | MandarinOrange | CC BY 4.0 | zamdreamer, Wayfair |
+| Míček | CarbonFibre | CC BY 4.0 | Wayfair |
+| Miska s olivami | IridescentDishWithOlives | CC BY 4.0 | Wayfair, LLC |
+| Komár v jantaru | MosquitoInAmber | CC BY 4.0 | Sketchfab |
+| Hedvábný taburet | SpecularSilkPouf | CC BY 4.0 | Wayfair, LLC |
+| Sametová pohovka | GlamVelvetSofa | CC BY 4.0 | Wayfair, LLC |
+| Barevná lampa | StainedGlassLamp | CC BY 4.0 | Wayfair |
+| Duhová lampička | IridescenceLamp | CC BY 4.0 | Wayfair, LLC |
+
+Z příkladů [three.js](https://github.com/mrdoob/three.js/tree/dev/examples/models/gltf):
+
+| Ve hře | Model | Licence | Autor |
+| --- | --- | --- | --- |
+| Robot | RobotExpressive | CC0 | Tomás Laulhé (Quaternius), úpravy Don McCurdy |
+| Koník, Papoušek, Plameňák, Čáp | Horse, Parrot, Flamingo, Stork | z projektu ro.me, jak je zveřejňuje three.js | mirada |
 
 Textury z repozitáře [three.js](https://github.com/mrdoob/three.js) (MIT):
 
-- `royal_esplanade_1k.hdr`: HDR prostředí z [Poly Haven](https://polyhaven.com/) (CC0)
-- `hardwood2_*.jpg`: dřevo
+- `hardwood2_*.jpg`: dřevo (krabice a podlaha)
+
+Dětský pokojíček (tapeta, okno, police, knížky, obrázek, girlanda, koberec) je nakreslený přímo v kódu (`www/js/room.js`).
 
 Knihovna [three.js](https://threejs.org/) (MIT). Android obal [Capacitor](https://capacitorjs.com/) (MIT).

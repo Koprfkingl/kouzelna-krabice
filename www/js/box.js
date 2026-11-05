@@ -15,7 +15,8 @@ function starShape(r1, r2, n = 5) {
 
 export function makeBox(tex) {
   const box = new THREE.Group();
-  const W = 1.5, H = 0.85, D = 0.9;
+  const W = 1.6, H = 0.72, D = 1.05, T = 0.06, B = 0.06; // width, wall height, depth, wall thickness, feet height
+  const TOP = B + H;
 
   const wood = new THREE.MeshPhysicalMaterial({
     map: tex.wood, roughnessMap: tex.woodRough, bumpMap: tex.woodBump, bumpScale: 1.2,
@@ -23,122 +24,206 @@ export function makeBox(tex) {
   });
   const brass = new THREE.MeshPhysicalMaterial({ color: 0xd9a84e, metalness: 1, roughness: 0.28, clearcoat: 0.3 });
   const darkBrass = new THREE.MeshPhysicalMaterial({ color: 0x8a6a33, metalness: 1, roughness: 0.4 });
+  const velvet = new THREE.MeshPhysicalMaterial({ color: 0x3a1858, roughness: 0.9, sheen: 1, sheenColor: 0xb07cff, sheenRoughness: 0.45 });
+  const add = (m, x, y, z, parent = box) => { m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; parent.add(m); return m; };
 
-  const body = new THREE.Mesh(new RoundedBoxGeometry(W, H, D, 6, 0.05), wood);
-  body.position.y = H / 2 + 0.06;
-  body.castShadow = body.receiveShadow = true;
-  box.add(body);
-
-  // Lid, a little thicker, with a brass band.
-  const lid = new THREE.Mesh(new RoundedBoxGeometry(W + 0.06, 0.16, D + 0.06, 6, 0.05), wood);
-  lid.position.y = H + 0.06 + 0.08;
-  lid.castShadow = lid.receiveShadow = true;
-  box.add(lid);
-  const band = new THREE.Mesh(new THREE.BoxGeometry(W + 0.075, 0.035, D + 0.075), brass);
-  band.position.y = H + 0.06 + 0.01;
-  band.castShadow = true;
-  box.add(band);
+  // Hollow body: floor and four walls, lined with velvet inside.
+  add(new THREE.Mesh(new RoundedBoxGeometry(W, H, T, 4, 0.025), wood), 0, B + H / 2, D / 2 - T / 2);
+  add(new THREE.Mesh(new RoundedBoxGeometry(W, H, T, 4, 0.025), wood), 0, B + H / 2, -D / 2 + T / 2);
+  for (const s of [-1, 1]) add(new THREE.Mesh(new RoundedBoxGeometry(T, H, D - 0.02, 4, 0.025), wood), s * (W / 2 - T / 2), B + H / 2, 0);
+  add(new THREE.Mesh(new THREE.BoxGeometry(W - 0.02, T, D - 0.02), wood), 0, B + T / 2, 0);
+  const IW = W - 2 * T, ID = D - 2 * T, IH = H - T;
+  add(new THREE.Mesh(new THREE.BoxGeometry(IW, 0.02, ID), velvet), 0, B + T + 0.01, 0);
+  for (const s of [-1, 1]) {
+    const fb = add(new THREE.Mesh(new THREE.PlaneGeometry(IW, IH), velvet), 0, B + T + IH / 2, s * (ID / 2 - 0.002));
+    fb.rotation.y = s > 0 ? Math.PI : 0;
+    const lr = add(new THREE.Mesh(new THREE.PlaneGeometry(ID, IH), velvet), s * (IW / 2 - 0.002), B + T + IH / 2, 0);
+    lr.rotation.y = -s * Math.PI / 2;
+  }
+  // Brass rim around the opening
+  for (const s of [-1, 1]) {
+    add(new THREE.Mesh(new THREE.BoxGeometry(W + 0.02, 0.03, T + 0.02), brass), 0, TOP - 0.015, s * (D / 2 - T / 2));
+    add(new THREE.Mesh(new THREE.BoxGeometry(T + 0.02, 0.03, D + 0.02), brass), s * (W / 2 - T / 2), TOP - 0.015, 0);
+  }
+  // A thin glowing seam between body and lid: dark when calm, laser-bright while zapping.
+  const seamMat = new THREE.MeshBasicMaterial({ color: 0xff60e0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+  for (const s of [-1, 1]) {
+    const a = new THREE.Mesh(new THREE.BoxGeometry(W + 0.05, 0.02, 0.02), seamMat); a.position.set(0, TOP + 0.005, s * (D / 2 + 0.015)); box.add(a);
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, D + 0.05), seamMat); b.position.set(s * (W / 2 + 0.015), TOP + 0.005, 0); box.add(b);
+  }
 
   // Feet
   for (const x of [-1, 1]) for (const z of [-1, 1]) {
-    const f = new THREE.Mesh(new THREE.SphereGeometry(0.07, 32, 16), brass);
+    const f = add(new THREE.Mesh(new THREE.SphereGeometry(0.07, 32, 16), brass), x * (W / 2 - 0.09), 0.055, z * (D / 2 - 0.09));
     f.scale.y = 0.85;
-    f.position.set(x * (W / 2 - 0.08), 0.055, z * (D / 2 - 0.08));
-    f.castShadow = true;
-    box.add(f);
   }
+  // Brass corner caps at the bottom corners
+  const cap = new THREE.SphereGeometry(0.055, 24, 16);
+  for (const x of [-1, 1]) for (const z of [-1, 1]) add(new THREE.Mesh(cap, brass), x * (W / 2 + 0.005), B + 0.03, z * (D / 2 + 0.005));
 
-  // Brass corner caps
-  const cap = new THREE.SphereGeometry(0.06, 24, 16);
-  for (const x of [-1, 1]) for (const y of [0, 1]) for (const z of [-1, 1]) {
-    const c = new THREE.Mesh(cap, brass);
-    c.position.set(x * (W / 2 + 0.01), 0.08 + y * (H + 0.08), z * (D / 2 + 0.01));
-    c.castShadow = true;
-    box.add(c);
+  // Lid on a hinge at the back edge
+  const lidPivot = new THREE.Group();
+  lidPivot.position.set(0, TOP, -D / 2);
+  box.add(lidPivot);
+  const LT = 0.13;
+  add(new THREE.Mesh(new RoundedBoxGeometry(W + 0.05, LT, D + 0.05, 5, 0.045), wood), 0, LT / 2 + 0.008, D / 2, lidPivot);
+  add(new THREE.Mesh(new THREE.BoxGeometry(W + 0.065, 0.03, D + 0.065), brass), 0, 0.022, D / 2, lidPivot);
+  const under = add(new THREE.Mesh(new THREE.PlaneGeometry(IW, ID), velvet), 0, 0.006, D / 2, lidPivot);
+  under.rotation.x = Math.PI / 2;
+  for (const x of [-1, 1]) for (const z of [0, 1]) add(new THREE.Mesh(cap, brass), x * (W / 2 + 0.01), LT + 0.005, z * D + (z ? 0.01 : -0.01), lidPivot);
+  // Hinges
+  for (const x of [-0.5, 0.5]) {
+    const h = add(new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.16, 16), darkBrass), x, 0.0, -0.01, lidPivot);
+    h.rotation.z = Math.PI / 2;
   }
+  // Keyhole plate at the front of the lid
+  const plate = add(new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.1, 0.02, 2, 0.008), brass), 0, 0.03, D + 0.035, lidPivot);
+  const keyMat = new THREE.MeshBasicMaterial({ color: 0x120818 });
+  const kh = new THREE.Mesh(new THREE.CircleGeometry(0.014, 16), keyMat); kh.position.set(0, 0.008, 0.011); plate.add(kh);
 
-  // Glowing stars on the front and sides
+  // Glowing stars on the lid and the front
   const starMat = new THREE.MeshStandardMaterial({ color: 0x2a1840, emissive: 0xb07cff, emissiveIntensity: 0.25, roughness: 0.3, metalness: 0.2 });
   const starGeo = new THREE.ExtrudeGeometry(starShape(0.07, 0.03), { depth: 0.012, bevelEnabled: true, bevelSize: 0.006, bevelThickness: 0.006, bevelSegments: 2 });
-  const stars = [];
-  const spots = [[-0.55, 0.72], [0.55, 0.72], [-0.6, 0.25], [0.6, 0.25], [-0.32, 0.82], [0.32, 0.82]];
-  for (const [x, y] of spots) {
-    const s = new THREE.Mesh(starGeo, starMat);
-    s.position.set(x, y, D / 2 + 0.002);
-    s.scale.setScalar(0.6 + Math.abs(x) * 0.5);
-    s.rotation.z = x * 0.6;
-    box.add(s);
-    stars.push(s);
+  for (const [x, z, sc] of [[-0.5, 0.3, 1.1], [0.5, 0.3, 1.1], [0, 0.55, 1.6], [-0.25, 0.8, 0.8], [0.25, 0.8, 0.8], [-0.6, 0.78, 0.7], [0.6, 0.78, 0.7]]) {
+    const st = new THREE.Mesh(starGeo, starMat);
+    st.position.set(x, LT + 0.01, z);
+    st.rotation.x = -Math.PI / 2;
+    st.rotation.z = x;
+    st.scale.setScalar(sc);
+    lidPivot.add(st);
   }
-  for (const side of [-1, 1]) {
-    const s = new THREE.Mesh(starGeo, starMat);
-    s.position.set(side * (W / 2 + 0.002), 0.5, 0);
-    s.rotation.y = side * Math.PI / 2;
-    s.scale.setScalar(1.4);
-    box.add(s);
+  for (const [x, y] of [[-0.6, 0.62], [0.6, 0.62], [-0.62, 0.22], [0.62, 0.22], [-0.36, 0.68], [0.36, 0.68]]) {
+    const st = new THREE.Mesh(starGeo, starMat);
+    st.position.set(x, y, D / 2 + 0.002);
+    st.scale.setScalar(0.6 + Math.abs(x) * 0.5);
+    st.rotation.z = x * 0.6;
+    box.add(st);
   }
 
   // Lens housing on the front: brass ring, dark tube, crystal.
+  const LY = B + H * 0.52;
   const lensGroup = new THREE.Group();
-  lensGroup.position.set(0, 0.48, D / 2);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.035, 24, 64), brass);
-  ring.position.z = 0.06;
-  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.12, 48, 1, true), darkBrass);
+  lensGroup.position.set(0, LY, D / 2);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.032, 24, 64), brass);
+  ring.position.z = 0.05;
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.1, 48, 1, true), darkBrass);
   tube.rotation.x = Math.PI / 2;
-  tube.position.z = 0.04;
-  const crystalMat = new THREE.MeshPhysicalMaterial({
-    color: 0xe6c8ff, emissive: 0xc070ff, emissiveIntensity: 0.4, roughness: 0.05, clearcoat: 1,
-  });
-  const crystal = new THREE.Mesh(new THREE.SphereGeometry(0.15, 48, 32), crystalMat);
+  tube.position.z = 0.035;
+  const crystalMat = new THREE.MeshPhysicalMaterial({ color: 0xe6c8ff, emissive: 0xc070ff, emissiveIntensity: 0.4, roughness: 0.05, clearcoat: 1 });
+  const crystal = new THREE.Mesh(new THREE.SphereGeometry(0.13, 48, 32), crystalMat);
   crystal.scale.z = 0.45;
-  crystal.position.z = 0.06;
+  crystal.position.z = 0.05;
   for (const m of [ring, tube, crystal]) m.castShadow = true;
-  // Screws around the ring
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
-    const sc = new THREE.Mesh(new THREE.SphereGeometry(0.014, 12, 8), darkBrass);
-    sc.position.set(Math.cos(a) * 0.17, Math.sin(a) * 0.17, 0.095);
+    const sc = new THREE.Mesh(new THREE.SphereGeometry(0.013, 12, 8), darkBrass);
+    sc.position.set(Math.cos(a) * 0.15, Math.sin(a) * 0.15, 0.083);
     lensGroup.add(sc);
   }
   lensGroup.add(ring, tube, crystal);
   box.add(lensGroup);
 
-  // Soft glow around the lens (a cheap stand-in for a bloom pass)
-  const gc = document.createElement('canvas'); gc.width = gc.height = 128;
-  const gg = gc.getContext('2d');
-  const grad = gg.createRadialGradient(64, 64, 0, 64, 64, 64);
-  grad.addColorStop(0, 'rgba(255,230,255,1)'); grad.addColorStop(0.2, 'rgba(230,120,255,0.55)'); grad.addColorStop(1, 'rgba(160,60,255,0)');
-  gg.fillStyle = grad; gg.fillRect(0, 0, 128, 128);
-  const glowMat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(gc), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.3 });
+  const glowTex = radialTexture('rgba(255,230,255,1)', 'rgba(230,120,255,0.55)', 'rgba(160,60,255,0)');
+  const glowMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.3 });
   const glow = new THREE.Sprite(glowMat);
-  glow.position.set(0, 0.48, D / 2 + 0.12);
-  glow.scale.setScalar(0.55);
+  glow.position.set(0, LY, D / 2 + 0.11);
+  glow.scale.setScalar(0.5);
   box.add(glow);
 
-  // Lens light for the charge-up
   const lensLight = new THREE.PointLight(0xc070ff, 0, 2.5, 2);
-  lensLight.position.set(0, 0.48, D / 2 + 0.3);
+  lensLight.position.set(0, LY, D / 2 + 0.3);
   box.add(lensLight);
 
-  // Keyhole on the lid band (pure decoration)
-  const key = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.02, 24), darkBrass);
-  key.rotation.x = Math.PI / 2;
-  key.position.set(0, H + 0.06 + 0.01, D / 2 + 0.045);
-  box.add(key);
+  // Light and mist inside
+  const innerLight = new THREE.PointLight(0xffd0ff, 0, 2.2, 1.5);
+  innerLight.position.set(0, TOP + 0.1, 0.1);
+  box.add(innerLight);
+  const inside = new THREE.Group();
+  inside.position.set(0, B + T + 0.02, 0.02);
+  box.add(inside);
 
+  const cloudTex = radialTexture('rgba(255,250,255,0.9)', 'rgba(235,215,255,0.45)', 'rgba(220,200,255,0)');
+  const mist = new THREE.Group();
+  const puffs = [];
+  for (let i = 0; i < 26; i++) {
+    const m = new THREE.SpriteMaterial({ map: cloudTex, transparent: true, depthWrite: false, opacity: 0 });
+    const sp = new THREE.Sprite(m);
+    sp.userData = { x: (Math.random() - 0.5) * IW * 0.9, z: (Math.random() - 0.5) * ID * 0.8, y: Math.random(), sp: 0.04 + Math.random() * 0.06, ph: Math.random() * 6, sc: 0.45 + Math.random() * 0.45 };
+    mist.add(sp); puffs.push(sp);
+  }
+  box.add(mist);
+
+  // Laser light leaking through the seam while the lid is shut
+  const beamGeo = new THREE.CylinderGeometry(0.008, 0.008, 1, 8, 1, true);
+  beamGeo.translate(0, 0.5, 0);
+  const beams = [];
+  for (let i = 0; i < 10; i++) {
+    const m = new THREE.MeshBasicMaterial({ color: i % 2 ? 0xff70e8 : 0xb890ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+    const b = new THREE.Mesh(beamGeo, m);
+    b.visible = false;
+    b.userData = { life: 0 };
+    box.add(b);
+    beams.push(b);
+  }
+  const up = new THREE.Vector3(0, 1, 0);
+
+  let mistLevel = 0;
   box.userData = {
-    lensLocal: new THREE.Vector3(0, 0.48, D / 2 + 0.08),
+    top: TOP,
+    inside,
+    insideFit: 0.62,
+    lensLocal: new THREE.Vector3(0, LY, D / 2 + 0.08),
     setCharge(k) {
-      // k: 0 calm, 1 full power
       crystalMat.emissiveIntensity = 0.4 + k * 5;
       starMat.emissiveIntensity = 0.25 + k * 4;
       lensLight.intensity = k * 6;
       glowMat.opacity = 0.3 + k * 0.7;
-      glow.scale.setScalar(0.55 + k * 0.9);
+      glow.scale.setScalar(0.5 + k * 0.8);
     },
-    lid,
+    setLid(k) { lidPivot.rotation.x = -1.95 * k; },   // 0 shut, 1 wide open
+    setSeam(k) { seamMat.opacity = k; },
+    setInnerLight(k) { innerLight.intensity = k * 2.2; },
+    setMist(k) { mistLevel = k; },
+    update(t, dt, zapping) {
+      for (const p of puffs) {
+        const u = p.userData;
+        u.y = (u.y + dt * u.sp) % 1;
+        p.position.set(u.x + Math.sin(t * 0.7 + u.ph) * 0.05, B + T + 0.05 + u.y * 0.75, u.z + Math.cos(t * 0.6 + u.ph) * 0.05);
+        const fade = Math.sin(u.y * Math.PI);
+        p.material.opacity = mistLevel * 0.2 * fade;
+        p.scale.setScalar(u.sc * (0.7 + u.y * 0.6));
+        p.visible = mistLevel > 0.01;
+      }
+      for (const b of beams) {
+        if (b.userData.life > 0) {
+          b.userData.life -= dt;
+          b.material.opacity = Math.max(0, b.userData.life * 6);
+          if (b.userData.life <= 0) b.visible = false;
+        } else if (zapping && Math.random() < dt * 9) {
+          // start at a random point of the seam and shoot outwards and up
+          const side = Math.floor(Math.random() * 4);
+          const r = Math.random() - 0.5;
+          const p = side < 2 ? new THREE.Vector3(r * W, TOP, (side ? 1 : -1) * (D / 2 + 0.02)) : new THREE.Vector3((side === 2 ? 1 : -1) * (W / 2 + 0.02), TOP, r * D);
+          const out = new THREE.Vector3(p.x, 0, p.z).normalize().multiplyScalar(0.8).add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 0.4 + Math.random() * 0.9, (Math.random() - 0.5) * 0.6)).normalize();
+          b.position.copy(p);
+          b.quaternion.setFromUnitVectors(up, out);
+          b.scale.set(1 + Math.random(), 1.2 + Math.random() * 1.8, 1 + Math.random());
+          b.userData.life = 0.12 + Math.random() * 0.22;
+          b.visible = true;
+        }
+      }
+    },
   };
   return box;
+}
+
+function radialTexture(c0, c1, c2) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, c0); gr.addColorStop(0.3, c1); gr.addColorStop(1, c2);
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
 }
 
 // The laser beam: a glowing core with a wider soft halo, both additive.
