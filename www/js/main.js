@@ -184,17 +184,20 @@ function describe(src) {
   return { living: true, name: `Příšerka ${n}`, acc: `příšerku ${n}`, g: 'f' };
 }
 
-// A built thing: holder (moved between stage and box) > obj (bounces when tapped) > model.
+// A built thing: holder (moved between stage and box) > bounce (hops when tapped) > obj > model.
 async function buildFor(src) {
   const obj = src.type === 'item' ? await buildItem(src.item) : src.type === 'photo' ? await buildPhoto(src.photo) : buildMonster(src.monster);
   const dis = prepareDissolve(obj);
   dis.uDis.value = 1;
-  const holder = new THREE.Group();
-  holder.add(obj);
+  const holder = new THREE.Group(), bounce = new THREE.Group();
+  bounce.add(obj);
+  holder.add(bounce);
   const size = new THREE.Box3().setFromObject(obj, true).getSize(new THREE.Vector3());
-  const fit = Math.min(1, box.userData.insideFit / Math.max(size.x, size.y, size.z, 0.01));
+  const maxDim = Math.max(size.x, size.y, size.z, 0.01);
+  const fit = Math.min(1, box.userData.insideFit / maxDim);   // small enough to fit under the lid
+  const show = Math.min(1, 0.95 / maxDim);                     // size when it climbs out to be admired
   try { await renderer.compileAsync(holder, camera, scene); } catch (e) { /* older GPUs compile on first draw */ }
-  return { ...src, ...describe(src), obj, holder, dis, fit, where: 'stage' };
+  return { ...src, ...describe(src), obj, bounce, holder, dis, fit, show, where: 'stage' };
 }
 
 // ---------- Small animation helpers ----------
@@ -289,6 +292,7 @@ async function moveCurrent(to) {
   c.holder.rotation.set(0, 0, 0);
   c.holder.scale.setScalar(s1);
   c.where = to;
+  c.raised = false;
   play('place');
 }
 
@@ -342,18 +346,46 @@ async function zap(targetSrc) {
   return { before, next };
 }
 
+// Height above the box floor at which a thing stands on the rim of the open box.
+const RISE = box.userData.top - box.userData.inside.position.y + 0.02;
+
+// Before the lid shuts, a thing that climbed out has to sink back in (or its head would stick out).
+async function sinkIntoBox() {
+  const c = current;
+  if (!c || c.where !== 'box' || !c.raised) return;
+  const y0 = c.holder.position.y, s0 = c.holder.scale.x;
+  play('whoosh');
+  await animate(0.8, k => {
+    const e = ease.inOut(k);
+    c.holder.position.y = y0 * (1 - e);
+    c.holder.scale.setScalar(s0 + (c.fit - s0) * e);
+  });
+  c.holder.position.y = 0;
+  c.holder.scale.setScalar(c.fit);
+  c.raised = false;
+}
+
 // The lid opens; the new thing rises out of the mist.
 async function reveal(before) {
   const c = current;
   await setLid(true);
   play('poof');
   sparkles.userData.emit(boxSlot.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.4, 0)), 120, 1.8, 0.5);
-  await animate(1.3, k => {
+  // first it appears deep in the mist, then it climbs all the way out and stands on top of the open box
+  await animate(1.0, k => {
     c.dis.uDis.value = 1 - ease.out(k);
-    c.holder.position.y = -0.2 + 0.32 * ease.out(k);
+    c.holder.position.y = -0.2 + 0.25 * ease.out(k);
     box.userData.setInnerLight(1 + Math.sin(k * Math.PI) * 0.8);
   });
   c.dis.uDis.value = 0;
+  play('whoosh');
+  await animate(1.1, k => {
+    const e = ease.out(k);
+    c.holder.position.y = 0.05 + (RISE - 0.05) * e + Math.sin(k * Math.PI) * 0.15;
+    c.holder.scale.setScalar(c.fit + (c.show - c.fit) * e);
+  });
+  c.raised = true;
+  play('place');
   const sentence = `${before.name} ${proměnil(before.g)} na ${c.acc}!`;
   showBubble('✨ ' + sentence + ' ✨');
   speak(sentence);
@@ -400,13 +432,79 @@ scene.add(lampLight);
 const flashLight = new THREE.PointLight(0xffffff, 0, 6, 2);
 scene.add(flashLight);
 
+// Tap = the thing reacts. Drag from the stage = carry it with a finger and drop it into the box.
+let drag = null;
+const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.0); // y = 1.0, just above the box
+const setPointer = e => { pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1); raycaster.setFromCamera(pointer, camera); };
+const overBox = p => Math.abs(p.x - box.position.x) < 0.95 && Math.abs(p.z - box.position.z) < 0.75;
+
 canvas.addEventListener('pointerdown', e => {
   initAudio();
   if (busy || !current) return;
-  pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
-  raycaster.setFromCamera(pointer, camera);
-  if (raycaster.intersectObject(current.holder, true).length) react(current);
+  setPointer(e);
+  if (!raycaster.intersectObject(current.holder, true).length) return;
+  const canDrag = current.where === 'stage' && (phase === 'stage' || phase === 'stageOpen');
+  drag = { x: e.clientX, y: e.clientY, moved: false, canDrag, id: e.pointerId };
+  canvas.setPointerCapture(e.pointerId);
 });
+
+canvas.addEventListener('pointermove', e => {
+  if (!drag || !drag.canDrag || e.pointerId !== drag.id) return;
+  if (!drag.moved) {
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 12) return;
+    drag.moved = true;
+    busy = true;
+    hidePanel(true);
+    drag.from = current.holder.getWorldPosition(new THREE.Vector3());
+    scene.attach(current.holder);
+    play('whoosh');
+  }
+  setPointer(e);
+  const p = new THREE.Vector3();
+  if (!raycaster.ray.intersectPlane(dragPlane, p)) return;
+  p.x = THREE.MathUtils.clamp(p.x, -2.2, 2.2); p.z = THREE.MathUtils.clamp(p.z, -1.6, 1.4);
+  const h = current.holder;
+  h.position.lerp(new THREE.Vector3(p.x, p.y - 0.35, p.z), 0.6);
+  const near = overBox(p);
+  h.scale.setScalar(THREE.MathUtils.lerp(h.scale.x, near ? current.fit : 1, 0.2));
+  drag.over = near;
+  box.userData.setInnerLight(near ? 1 : lidOpen ? 1 : 0);
+  if (Math.random() < 0.3) sparkles.userData.emit(h.getWorldPosition(new THREE.Vector3()), 1, 0.4, 0.15);
+});
+
+const endDrag = e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag;
+  drag = null;
+  if (!d.moved) { react(current); return; }
+  const c = current;
+  (async () => {
+    if (d.over) {
+      // Dropped over the box: open the lid if needed and let it fall in.
+      if (!lidOpen) await setLid(true);
+      const to = boxSlot.getWorldPosition(new THREE.Vector3()), from = c.holder.position.clone(), s0 = c.holder.scale.x;
+      await animate(0.5, k => { c.holder.position.lerpVectors(from, to, ease.inOut(k)); c.holder.scale.setScalar(s0 + (c.fit - s0) * k); });
+      boxSlot.add(c.holder);
+      c.holder.position.set(0, 0, 0); c.holder.rotation.set(0, 0, 0); c.holder.scale.setScalar(c.fit);
+      c.where = 'box'; c.raised = false;
+      play('place');
+      busy = false;
+      setPhase('inside');
+    } else {
+      // Dropped elsewhere: it hops back onto the stage.
+      const to = spinner.getWorldPosition(new THREE.Vector3()), from = c.holder.position.clone(), s0 = c.holder.scale.x;
+      await animate(0.45, k => { c.holder.position.lerpVectors(from, to, ease.inOut(k)); c.holder.scale.setScalar(s0 + (1 - s0) * k); });
+      spinner.add(c.holder);
+      c.holder.position.set(0, 0, 0); c.holder.rotation.set(0, 0, 0); c.holder.scale.setScalar(1);
+      if (!lidOpen) box.userData.setInnerLight(0);
+      play('boing');
+      busy = false;
+      setPhase(phase);
+    }
+  })();
+};
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
 
 function react(c) {
   const kind = c.type === 'item' ? c.item.sound : c.type === 'monster' ? 'monster' : null;
@@ -423,7 +521,7 @@ function react(c) {
     }
   }
   if (kind === 'radio') for (let i = 0; i < 6; i++) setTimeout(() => sparkles.userData.emit(centerOf(c.obj).c, 14, 1.2, 0.3), i * 170);
-  reaction = { obj: c.obj, start: performance.now(), spin: kind === 'auto' };
+  reaction = { obj: c.bounce, start: performance.now(), spin: kind === 'auto' };
 }
 
 function updateReaction(now) {
@@ -639,17 +737,19 @@ function action(label, fn, cls = '') { return { label, fn, cls }; }
 function setPhase(p) {
   phase = p;
   const c = current;
-  let title = '', main = null, extra = [];
+  let title = '', main = null, extra = [], tip = '';
   $('zive-info').hidden = true;
   $('cil-volba').hidden = true;
   shot = ['inside', 'closed', 'done', 'result'].includes(p) ? 'box' : 'stage';
   const other = action('🔄 Vybrat něco jiného', () => showPicker());
   if (p === 'stage') {
     title = `${c.name} čeká před krabicí`;
+    tip = 'Můžeš to prstem přetáhnout do krabice, nebo použít tlačítka.';
     main = action('📦 Otevřít krabici', async () => { await setLid(true); setPhase('stageOpen'); });
     extra = [other];
   } else if (p === 'stageOpen') {
     title = 'Krabice je otevřená!';
+    tip = 'Můžeš to prstem přetáhnout do krabice, nebo klepnout na tlačítko.';
     main = action('⬆️ Dát do krabice', async () => { await moveCurrent('box'); setPhase('inside'); });
     extra = [other];
   } else if (p === 'inside') {
@@ -667,10 +767,12 @@ function setPhase(p) {
     main = action('📦 Otevřít krabici', async () => { await reveal(lastBefore); setPhase('result'); }, 'laser');
   } else if (p === 'result') {
     title = `Tadá! ${c.name}`;
-    main = action('✨ Zavřít a proměnit znovu', async () => { mistTarget = 0; await setLid(false); setPhase('closed'); });
+    main = action('✨ Zavřít a proměnit znovu', async () => { await sinkIntoBox(); mistTarget = 0; await setLid(false); setPhase('closed'); });
     extra = [action('⬇️ Vyndat ven', async () => { mistTarget = 0; await moveCurrent('stage'); await setLid(false); setPhase('stage'); }), other];
   }
   $('akce-nadpis').textContent = title;
+  $('akce-tip').textContent = tip;
+  $('akce-tip').hidden = !tip;
   const mb = $('btn-hlavni');
   mb.textContent = main.label;
   mb.className = 'velke hlavni ' + main.cls;
@@ -850,7 +952,8 @@ async function start() {
   checkForUpdate();
 
   if (params.has('nahledy')) { window.__kk = { ITEMS, putOnStage, spinner, camera, renderer, resize }; $('nacitani').classList.add('pryc'); return; }
-  if (params.has('demo')) { window.__kk = { choose, putOnStage, current: () => current, ITEMS, newMonsterSpec, setPhase, phase: () => phase }; }
+  if (params.has('demo')) { window.__kk = { choose, putOnStage, current: () => current, ITEMS, newMonsterSpec, setPhase, phase: () => phase,
+    screen: which => { const v = (which === 'box' ? box.localToWorld(new THREE.Vector3(0, 0.9, 0)) : centerOf(current.obj).c).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; } }; }
 
   $('start').hidden = false;
   $('start').addEventListener('click', () => {
