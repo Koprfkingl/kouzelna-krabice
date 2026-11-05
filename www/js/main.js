@@ -31,7 +31,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 60);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 40);
 // Lights: a warm key light with shadows; the room itself gives soft light and reflections.
 const KEY = 2.0;
 const key = new THREE.DirectionalLight(0xfff1dc, KEY);

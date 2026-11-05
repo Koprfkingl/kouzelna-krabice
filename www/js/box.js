@@ -42,8 +42,10 @@ export function makeBox(tex) {
   }
   // Brass rim around the opening
   for (const s of [-1, 1]) {
-    add(new THREE.Mesh(new THREE.BoxGeometry(W + 0.02, 0.03, T + 0.02), brass), 0, TOP - 0.015, s * (D / 2 - T / 2));
-    add(new THREE.Mesh(new THREE.BoxGeometry(T + 0.02, 0.03, D + 0.02), brass), s * (W / 2 - T / 2), TOP - 0.015, 0);
+    // Sits a few mm above the wood (coplanar faces flickered) and the side bars stop where the
+    // front/back bars begin, so no two brass faces share a plane at the corners either.
+    add(new THREE.Mesh(new THREE.BoxGeometry(W + 0.02, 0.034, T + 0.02), brass), 0, TOP - 0.012, s * (D / 2 - T / 2));
+    add(new THREE.Mesh(new THREE.BoxGeometry(T + 0.02, 0.032, D - 2 * T - 0.02), brass), s * (W / 2 - T / 2), TOP - 0.013, 0);
   }
   // A thin glowing seam between body and lid: dark when calm, laser-bright while zapping.
   const seamMat = new THREE.MeshBasicMaterial({ color: 0xff60e0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
