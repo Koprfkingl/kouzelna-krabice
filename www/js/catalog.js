@@ -38,15 +38,16 @@ export function proměnil(g) {
   return g === 'f' ? 'se proměnila' : g === 'n' ? 'se proměnilo' : g === 'p' ? 'se proměnily' : 'se proměnil';
 }
 
-// Monster names: two cute syllables and an ending, e.g. "Bublinka", "Fifík", "Žužlík".
-const S1 = ['Bu', 'Mu', 'Fí', 'Žu', 'Pi', 'Ťu', 'Ňu', 'Lu', 'Ko', 'Bo', 'Mí', 'Čí', 'Šu', 'Ku', 'Dů', 'Hu', 'Zu', 'Pu'];
-const S2 = ['bl', 'ml', 'f', 'žl', 'pl', 'ťap', 'ňaf', 'l', 'k', 'mb', 'š', 'č', 'nd', 'p', 'r', 'ch'];
-const END = ['inka', 'ík', 'ánek', 'ulka', 'ouš', 'ička', 'ínek', 'enka', 'íček', 'uška'];
+// Monster names: a fixed, hand-picked list, so no generated word can come out rude or silly.
+export const MONSTER_NAMES = [
+  'Bublinka', 'Mňaminka', 'Fifinka', 'Pusinka', 'Ťapinka', 'Kulička', 'Lentilka', 'Bambulka', 'Hvězdička', 'Jahůdka',
+  'Malinka', 'Borůvka', 'Karamelka', 'Perlička', 'Duhůvka', 'Vločka', 'Kapička', 'Čepička', 'Rozinka', 'Šiška',
+  'Mufinka', 'Sluníčko', 'Mráček', 'Puntík', 'Chlupáček', 'Bonbónek', 'Knoflík', 'Drobeček', 'Ťuťánek', 'Fazolka',
+  'Medvídek', 'Pampeliška', 'Kokosek', 'Žužu', 'Mimi', 'Pupík', 'Bambule', 'Cukrátko', 'Bobík', 'Fíla',
+  'Kuliferda', 'Mrkvička', 'Pecička', 'Hopsálek', 'Tulipánek', 'Koblížek', 'Mlsoun', 'Pudink', 'Míša', 'Lízátko',
+];
 export function monsterName(rand) {
-  const p = a => a[Math.floor(rand() * a.length)];
-  let n = p(S1) + p(S2).toLowerCase() + p(END);
-  return n.charAt(0).toUpperCase() + n.slice(1);
-}
-export function monsterGender(name) {
-  return /(a)$/.test(name) ? 'f' : 'm';
+  // Uses three random numbers on purpose: older versions did too, so saved monsters keep their looks.
+  const a = rand(), b = rand(), c = rand();
+  return MONSTER_NAMES[Math.floor(((a + b + c) % 1) * MONSTER_NAMES.length)];
 }

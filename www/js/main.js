@@ -472,6 +472,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } },
 };
 let album = store.get('kk-album', []);
+for (const a of album) a.name = monsterName(rng(a.seed)); // names from the current list
 let photos = store.get('kk-fotky', []);
 
 async function saveToAlbum(c) {
