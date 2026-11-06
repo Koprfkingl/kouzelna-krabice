@@ -2,6 +2,17 @@
 // a garland, a fluffy rug and a few real furniture models from the catalog.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+// Merges geometries of different kinds (indexed or not) into one, keeping position, normal and uv.
+function mergeAll(geos) {
+  return mergeGeometries(geos.map(g => {
+    const n = g.index ? g.toNonIndexed() : g;
+    for (const k of Object.keys(n.attributes)) if (!['position', 'normal', 'uv'].includes(k)) n.deleteAttribute(k);
+    n.clearGroups();
+    return n;
+  }));
+}
 
 function canvasTex(w, h, draw, repeat) {
   const c = document.createElement('canvas');
@@ -36,7 +47,7 @@ function wallpaper() {
       if (i % 5 === 0) { g.beginPath(); g.arc(x, y, 12, 0, Math.PI * 2); g.fill(); g.fillStyle = '#f3e9f2'; g.beginPath(); g.arc(x + 6, y - 4, 11, 0, Math.PI * 2); g.fill(); }
       else star(g, x, y, 9 + rnd() * 5);
     }
-  }, [3, 2]);
+  }, [4, 2.6]);
 }
 
 function skyTexture() {
@@ -95,13 +106,93 @@ function pictureTexture() {
   });
 }
 
+const BED = { x: -3.7, len: 1.85, w: 1.0 };
+const softMat = (color, o = {}) => new THREE.MeshPhysicalMaterial({ color, roughness: 0.85, sheen: 0.6, sheenColor: 0xffffff, sheenRoughness: 0.6, ...o });
+
+function duvetTexture() {
+  return canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#f7b8d2'; g.fillRect(0, 0, w, h);
+    for (let y = 0; y < 6; y++) for (let x = 0; x < 6; x++) {
+      g.fillStyle = (x + y) % 2 ? '#fff4f8' : '#ffd36e';
+      if ((x + y) % 3 === 0) star(g, x * 44 + 22 + (y % 2) * 10, y * 44 + 22, 10); else { g.beginPath(); g.arc(x * 44 + 22, y * 44 + 22, 6, 0, Math.PI * 2); g.fill(); }
+    }
+  }, [2, 2]);
+}
+
+// A little bed along the left wall: white wooden frame with a heart, mattress, starry duvet and a pillow.
+function makeBed(BACK) {
+  const g = new THREE.Group();
+  const z0 = BACK + 0.08, zc = z0 + BED.len / 2;
+  g.position.set(BED.x, 0, zc);
+  const wood = new THREE.MeshStandardMaterial({ color: 0xfbf3ea, roughness: 0.5 });
+  // the wooden parts are merged into one mesh (one draw call instead of thirty)
+  const woodParts = [];
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; if (mat === wood) woodParts.push(m); else g.add(m); return m; };
+  const hw = BED.w / 2 + 0.05, hl = BED.len / 2;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) add(new THREE.CylinderGeometry(0.045, 0.05, sz < 0 ? 1.15 : 0.75, 16), wood, sx * hw, (sz < 0 ? 1.15 : 0.75) / 2, sz * hl);
+  for (const sz of [-1, 1]) for (const sy of [0, 1]) add(new THREE.CylinderGeometry(0.03, 0.03, hw * 2, 12), wood, 0, sz < 0 ? 0.4 + sy * 0.66 : 0.4 + sy * 0.3, sz * hl).rotation.z = Math.PI / 2;
+  // bars of the head and foot
+  for (const sz of [-1, 1]) for (let i = -3; i <= 3; i++) add(new THREE.CylinderGeometry(0.018, 0.018, sz < 0 ? 0.66 : 0.3, 8), wood, i * hw / 4, sz < 0 ? 0.73 : 0.55, sz * hl);
+  for (const sx of [-1, 1]) add(new RoundedBoxGeometry(0.06, 0.14, BED.len, 2, 0.02), wood, sx * hw, 0.3, 0);
+  add(new RoundedBoxGeometry(BED.w, 0.16, BED.len - 0.04, 3, 0.05), softMat(0xffffff), 0, 0.4, 0);
+  // heart on the headboard
+  const heart = new THREE.Shape();
+  heart.moveTo(0, -0.1); heart.bezierCurveTo(-0.16, 0.02, -0.08, 0.15, 0, 0.07); heart.bezierCurveTo(0.08, 0.15, 0.16, 0.02, 0, -0.1);
+  add(new THREE.ExtrudeGeometry(heart, { depth: 0.02, bevelEnabled: true, bevelSize: 0.01, bevelThickness: 0.01, bevelSegments: 2 }), new THREE.MeshPhysicalMaterial({ color: 0xff5f9e, roughness: 0.35, clearcoat: 0.6 }), 0, 1.0, -hl + 0.03);
+  // duvet over the foot two thirds, folded edge, pillow at the head
+  const duvet = add(new RoundedBoxGeometry(BED.w + 0.06, 0.09, BED.len * 0.68, 3, 0.04), softMat(0xffffff, { map: duvetTexture() }), 0, 0.52, hl - BED.len * 0.34 - 0.02);
+  duvet.rotation.x = 0.01;
+  add(new RoundedBoxGeometry(BED.w + 0.07, 0.1, 0.16, 3, 0.045), softMat(0xfff4f8), 0, 0.55, hl - BED.len * 0.68);
+  const pillow = add(new RoundedBoxGeometry(0.62, 0.13, 0.34, 4, 0.06), softMat(0xbfe6dd), 0, 0.54, -hl + 0.3);
+  pillow.rotation.x = -0.18;
+  const merged = new THREE.Mesh(mergeAll(woodParts.map(m => { m.updateMatrix(); return m.geometry.clone().applyMatrix4(m.matrix); })), wood);
+  merged.castShadow = merged.receiveShadow = true;
+  g.add(merged);
+  g.userData.bed = true;
+  return g;
+}
+
+// A shelf for trophies: reading ranks and monster collection medals stand here (see main.js).
+function makeTrophyShelf(BACK) {
+  const g = new THREE.Group();
+  g.position.set(3.3, 0, BACK + 0.14);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xc7a2ff, roughness: 0.45 });
+  const slots = [];
+  for (const [i, y] of [1.2, 1.78].entries()) {
+    const b = new THREE.Mesh(new RoundedBoxGeometry(1.55, 0.05, 0.26, 2, 0.015), mat);
+    b.position.y = y; b.castShadow = b.receiveShadow = true; g.add(b);
+    for (const s of [-1, 1]) { const br = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.12, 0.2), mat); br.position.set(s * 0.6, y - 0.08, -0.02); g.add(br); }
+    for (let k = 0; k < 5; k++) slots.push(new THREE.Vector3(3.3 - 0.6 + k * 0.3, y + 0.025, BACK + 0.16));
+  }
+  return { group: g, slots };
+}
+
+function emptyFrameTexture() {
+  return canvasTex(128, 160, (g, w, h) => {
+    g.fillStyle = '#fff7fb'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#f2c4da'; g.lineWidth = 4; g.setLineDash([10, 8]); g.strokeRect(14, 14, w - 28, h - 28);
+    g.fillStyle = '#f7c6d9'; g.font = '44px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('♥', w / 2, h / 2);
+  });
+}
+const FRAME_COLORS = { r1: 0xffc1d9, r2: 0xffe08a, r3: 0x9ad3c8 };
+function makeFrame(id) {
+  const group = new THREE.Group();
+  const frame = new THREE.Mesh(new RoundedBoxGeometry(0.5, 0.6, 0.035, 2, 0.012), new THREE.MeshStandardMaterial({ color: FRAME_COLORS[id], roughness: 0.45 }));
+  frame.castShadow = true;
+  const empty = emptyFrameTexture();
+  const img = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.5), new THREE.MeshStandardMaterial({ map: empty, roughness: 0.6 }));
+  img.position.z = 0.019;
+  group.add(frame, img);
+  return { group, img, empty };
+}
+
 export function makeRoom(tex) {
   const room = new THREE.Group();
-  const BACK = -2.6, SIDE = 3.2, HEIGHT = 3.4;
+  const BACK = -2.6, SIDE = 4.4, HEIGHT = 4.2;
 
   // Floor: warm parquet
   const floorTex = {};
-  for (const [k, t] of Object.entries(tex)) { floorTex[k] = t.clone(); floorTex[k].repeat.set(4, 4); floorTex[k].needsUpdate = true; }
+  for (const [k, t] of Object.entries(tex)) { floorTex[k] = t.clone(); floorTex[k].repeat.set(5.5, 4); floorTex[k].needsUpdate = true; }
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(SIDE * 2, 8), new THREE.MeshStandardMaterial({
     map: floorTex.wood, roughnessMap: floorTex.woodRough, bumpMap: floorTex.woodBump, bumpScale: 0.5, color: 0xdcb48c, roughness: 0.55,
   }));
@@ -191,7 +282,6 @@ export function makeRoom(tex) {
     bx += w + 0.008;
   });
   room.add(shelf);
-  room.userData.shelfSpots = [new THREE.Vector3(1.75, 1.575, BACK + 0.13), new THREE.Vector3(1.3, 2.195, BACK + 0.13), new THREE.Vector3(1.8, 2.195, BACK + 0.13)];
 
   // A framed child's drawing
   const pic = new THREE.Group();
@@ -230,9 +320,34 @@ export function makeRoom(tex) {
   room.userData.props = [
     { id: 'kytka', pos: new THREE.Vector3(-2.4, 0, BACK + 0.45), size: 1.0, rot: 0.4 },
     { id: 'taburet', pos: new THREE.Vector3(2.15, 0, -1.2), size: 0.75, rot: 0.3 },
-    { id: 'micek', pos: new THREE.Vector3(-1.75, 0, 0.6), size: 0.4, rot: 0 },
-    { id: 'auticko', pos: new THREE.Vector3(1.55, 1.575, BACK + 0.13), size: 0.38, rot: -0.4 },
-    { id: 'duhova', pos: new THREE.Vector3(1.75, 2.195, BACK + 0.13), size: 0.42, rot: 0 },
+  ];
+  // the pouf gets a spot on top once its model is in (see main.js)
+  room.userData.props[1].spot = { id: 'taburet', size: 0.55 };
+
+  room.add(makeBed(BACK));
+  const trophies = makeTrophyShelf(BACK);
+  room.add(trophies.group);
+  room.userData.trophySlots = trophies.slots;
+
+  // Empty picture frames: the child hangs photos and monster pictures in them.
+  room.userData.frames = [
+    { id: 'r1', pos: new THREE.Vector3(-4.0, 1.75, BACK + 0.02), rot: -0.04 },
+    { id: 'r2', pos: new THREE.Vector3(-3.35, 2.08, BACK + 0.02), rot: 0.05 },
+    { id: 'r3', pos: new THREE.Vector3(3.3, 2.6, BACK + 0.02), rot: -0.03 },
+  ].map(f => { const fr = makeFrame(f.id); fr.group.position.copy(f.pos); fr.group.rotation.z = f.rot; room.add(fr.group); return { ...f, ...fr }; });
+
+  // Places where the child can put things to decorate the room.
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  room.userData.spots = [
+    { id: 'polstar', pos: V(BED.x, 0.64, BACK + 0.45), size: 0.5, rot: 0.2 },
+    { id: 'perina', pos: V(BED.x, 0.58, BACK + 1.45), size: 0.55, rot: 0.6 },
+    { id: 'polickaA', pos: V(1.75, 1.575, BACK + 0.13), size: 0.38, rot: -0.4 },
+    { id: 'polickaB', pos: V(1.1, 2.195, BACK + 0.13), size: 0.38, rot: 0.2 },
+    { id: 'polickaC', pos: V(1.72, 2.195, BACK + 0.13), size: 0.4, rot: 0 },
+    { id: 'zemA', pos: V(-1.9, 0, 0.75), size: 0.75, rot: 0.6 },
+    { id: 'zemB', pos: V(2.75, 0, 0.45), size: 0.75, rot: -0.6 },
+    { id: 'zemC', pos: V(3.3, 0, BACK + 0.75), size: 0.75, rot: -0.2 },
+    { id: 'zemD', pos: V(-2.75, 0, -0.35), size: 0.75, rot: 0.5 },
   ];
   return room;
 }

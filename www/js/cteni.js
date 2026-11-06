@@ -1,18 +1,21 @@
+import { hrac } from './hrac.js';
 // Reading with monsters: words with pictures, split into syllables (as in a Czech first-grade reader).
 // Levels: 1 letter, 2 syllable, 3 word, 4 a message from the monster (a short sentence).
 
 // Word, picture. Syllables are separated by '-'.
 export const SLOVA = [
-  ['PES', '🐶'], ['MÍČ', '⚽'], ['LES', '🌲'], ['DŮM', '🏠'], ['SÝR', '🧀'], ['NOS', '👃'], ['ZUB', '🦷'], ['HAD', '🐍'],
-  ['LEV', '🦁'], ['VLK', '🐺'], ['MYŠ', '🐭'], ['VLAK', '🚂'], ['LOĎ', '⛵'], ['DORT', '🎂'], ['SNÍH', '❄️'], ['SLON', '🐘'],
+  ['PES', '🐶'], ['MÍČ', '⚽'], ['DŮM', '🏠'], ['SÝR', '🧀'], ['NOS', '👃'], ['ZUB', '🦷'], ['HAD', '🐍'],
+  ['LEV', '🦁'], ['VLK', '🐺'], ['MYŠ', '🐭'], ['VLAK', '🚂'], ['LOĎ', '⛵'], ['DORT', '🎂'], ['SLON', '🐘'],
   ['AU-TO', '🚗'], ['O-KO', '👁️'], ['U-CHO', '👂'], ['RY-BA', '🐟'], ['LIŠ-KA', '🦊'], ['KO-LO', '🚲'], ['MĚ-SÍC', '🌙'],
   ['KYT-KA', '🌷'], ['HRUŠ-KA', '🍐'], ['BA-NÁN', '🍌'], ['MR-KEV', '🥕'], ['ME-LOUN', '🍉'], ['MLÉ-KO', '🥛'], ['RA-KE-TA', '🚀'],
   ['KO-RU-NA', '👑'], ['SO-VA', '🦉'], ['KO-ZA', '🐐'], ['ŽÁ-BA', '🐸'], ['KRÁ-VA', '🐮'], ['PRA-SE', '🐷'], ['OV-CE', '🐑'],
   ['KU-ŘE', '🐤'], ['TY-GR', '🐯'], ['O-PI-CE', '🐵'], ['ŽI-RA-FA', '🦒'], ['VE-VER-KA', '🐿️'], ['MO-TÝL', '🦋'], ['BO-TA', '👟'],
-  ['ČE-PI-CE', '🧢'], ['DÁ-REK', '🎁'], ['BA-LÓN', '🎈'], ['LAM-PA', '💡'], ['MÁ-MA', '👩'], ['TÁ-TA', '👨'], ['VO-DA', '💧'],
-  ['RU-KA', '✋'], ['NO-HA', '🦵'], ['SRD-CE', '❤️'], ['HR-NEK', '☕'], ['KNI-HA', '📖'], ['PE-RO', '🖊️'], ['DU-HA', '🌈'],
+  ['ČE-PI-CE', '🧢'], ['DÁ-REK', '🎁'], ['BA-LÓN', '🎈'], 
+  ['RU-KA', '✋'], ['NO-HA', '🦵'], ['SRD-CE', '❤️'], ['KNI-HA', '📖'], ['DU-HA', '🌈'],
   ['MED-VĚD', '🐻'], ['KOČ-KA', '🐱'], ['SLUN-CE', '☀️'], ['HVĚZ-DA', '⭐'], ['JA-BL-KO', '🍎'], ['VA-JÍČ-KO', '🥚'],
   ['ZMRZ-LI-NA', '🍦'], ['MRAK', '☁️'], ['KA-ČE-NA', '🦆'],
+  ['JA-HO-DA', '🍓'], ['HOU-BA', '🍄'], ['PA-VOUK', '🕷️'], ['ŠNEK', '🐌'], ['VČE-LA', '🐝'], ['BE-RUŠ-KA', '🐞'], ['TUČ-ŇÁK', '🐧'],
+  ['KRO-KO-DÝL', '🐊'], ['ZE-BRA', '🦓'], ['VEL-RY-BA', '🐳'], ['KLÍČ', '🔑'], ['KLO-BOUK', '🎩'], ['KŮŇ', '🐴'], ['STROM', '🌳'],
 ].map(([w, e]) => ({ w, e, plain: w.replace(/-/g, ''), syl: w.split('-') }));
 
 // Messages from the monster: what it wants (answered with a care action) …
@@ -159,16 +162,17 @@ export function afterResult(r, firstTry, stats) {
 
 // Reading ranks by the number of stars.
 export const HODNOSTI = [
-  { od: 0, nazev: 'Začínám číst', ikona: '🐣' },
-  { od: 10, nazev: 'Písmenková průzkumnice', ikona: '🔤' },
-  { od: 30, nazev: 'Slabiková kouzelnice', ikona: '🪄' },
-  { od: 60, nazev: 'Čtenářka', ikona: '📗' },
-  { od: 100, nazev: 'Velká čtenářka', ikona: '📚' },
-  { od: 160, nazev: 'Mistryně čtení', ikona: '🏆' },
-  { od: 250, nazev: 'Knižní dračice', ikona: '🐉' },
+  { od: 0, nazev: 'Začínám číst', kluk: 'Začínám číst', ikona: '🐣' },
+  { od: 10, nazev: 'Písmenková průzkumnice', kluk: 'Písmenkový průzkumník', ikona: '🔤' },
+  { od: 30, nazev: 'Slabiková kouzelnice', kluk: 'Slabikový kouzelník', ikona: '🪄' },
+  { od: 60, nazev: 'Čtenářka', kluk: 'Čtenář', ikona: '📗' },
+  { od: 100, nazev: 'Velká čtenářka', kluk: 'Velký čtenář', ikona: '📚' },
+  { od: 160, nazev: 'Mistryně čtení', kluk: 'Mistr čtení', ikona: '🏆' },
+  { od: 250, nazev: 'Knižní dračice', kluk: 'Knižní drak', ikona: '🐉' },
 ];
-export const hodnost = stars => HODNOSTI.filter(h => stars >= h.od).pop();
-export const dalsiHodnost = stars => HODNOSTI.find(h => h.od > stars);
+const forPlayer = h => h && (hrac.kluk ? { ...h, nazev: h.kluk } : h);
+export const hodnost = stars => forPlayer(HODNOSTI.filter(h => stars >= h.od).pop());
+export const dalsiHodnost = stars => forPlayer(HODNOSTI.find(h => h.od > stars));
 
 // Text → HTML with each syllable in its own colour (red/blue, like in a first-grade reader). Syllables can be tapped.
 export function syllableHTML(text, lower, sentence) {

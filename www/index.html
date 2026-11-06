@@ -25,7 +25,10 @@
 </div>
 
 <header id="horni">
-  <button id="btn-album" class="kulate" aria-label="Sbírka příšerek">📖<span id="album-pocet">0</span></button>
+  <div class="skupina">
+    <button id="btn-album" class="kulate" aria-label="Sbírka příšerek">📖<span id="album-pocet">0</span></button>
+    <button id="btn-pokoj" class="kulate" aria-label="Můj pokojíček">🏠</button>
+  </div>
   <div id="titulek">Kouzelná krabice</div>
   <button id="btn-zvuk" class="kulate" aria-label="Zvuk">🔊</button>
 </header>
@@ -39,6 +42,7 @@
     <h2 id="vyber-nadpis">Co dáme před krabici?</h2>
     <nav class="zalozky" id="zalozky-zdroj"></nav>
     <div class="mrizka" id="mrizka-zdroj"></div>
+    <button id="vyber-zpet" class="druhe-tl zpet-tl" hidden>⬅️ Zpět, nic neměnit</button>
   </div>
 
   <!-- Čtení s příšerkou -->
@@ -81,7 +85,7 @@
 <div id="foto-dotaz" class="okno" hidden>
   <div class="okno-obsah">
     <img id="foto-nahled" alt="">
-    <h2>Co jsi vyfotila?</h2>
+    <h2 id="foto-otazka">Co jsi vyfotila?</h2>
     <div class="mrizka tri">
       <button class="dlazdice" data-druh="zive"><span class="ikona">🐾</span>Něco živého</button>
       <button class="dlazdice" data-druh="veci"><span class="ikona">🧸</span>Věc</button>
@@ -114,6 +118,29 @@
   <div class="okno-obsah">
     <div class="radek"><h2>📊 Jak jde čtení</h2><button id="prehled-zavrit" class="kulate">✕</button></div>
     <div id="prehled-obsah" class="prehled"></div>
+    <div class="radek tlacitka"><button id="prehled-jmeno" class="male">✏️ Změnit jméno hráče</button></div>
+  </div>
+</div>
+
+<div id="ramecek" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>🖼️ Co dáme do rámečku?</h2><button id="ramecek-zavrit" class="kulate">✕</button></div>
+    <div class="mrizka" id="ramecek-mrizka"></div>
+  </div>
+</div>
+
+<div id="jmeno" class="okno" hidden>
+  <div class="okno-obsah">
+    <h2>👋 Ahoj! Jak se jmenuješ?</h2>
+    <input id="jmeno-vstup" type="text" maxlength="20" autocomplete="off" placeholder="Maruška">
+    <div class="mrizka tri dve">
+      <button class="dlazdice" data-kluk="0"><span class="ikona">👧</span>Holka</button>
+      <button class="dlazdice" data-kluk="1"><span class="ikona">👦</span>Kluk</button>
+    </div>
+    <div class="radek tlacitka">
+      <button id="jmeno-ok" class="velke">✨ Hotovo</button>
+      <button id="jmeno-preskocit" class="male">Přeskočit</button>
+    </div>
   </div>
 </div>
 

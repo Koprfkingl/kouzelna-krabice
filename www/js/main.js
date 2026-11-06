@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 import { ITEMS, KINDS, byId, proměnil, monsterName } from './catalog.js';
 import { makeMonster, rng } from './monster.js';
@@ -9,9 +10,10 @@ import { makeBox, makeSparkles } from './box.js';
 import { makeRoom } from './room.js';
 import { VERZE } from './verze.js';
 import { prepareDissolve } from './dissolve.js';
-import { newRound, afterResult, syllableHTML, statKey, hodnost, dalsiHodnost } from './cteni.js';
+import { newRound, afterResult, syllableHTML, statKey, hodnost, dalsiHodnost, HODNOSTI } from './cteni.js';
 import { DOPLNKY, wear, byIdD } from './doplnky.js';
 import { initAudio, play, setMuted, muted } from './audio.js';
+import { hrac, known, setHrac, vokativ, a as rod } from './hrac.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -187,7 +189,8 @@ function describe(src) {
 }
 
 // A built thing: holder (moved between stage and box) > bounce (hops when tapped) > obj > model.
-async function buildFor(src) {
+async function buildFor(src, { decor: forRoom = false } = {}) {
+  if (src.type === 'monster' && !forRoom) takeFromRoom(src.monster.seed);
   const obj = src.type === 'item' ? await buildItem(src.item) : src.type === 'photo' ? await buildPhoto(src.photo) : buildMonster(src.monster);
   if (src.type === 'monster') { const e = album.find(a => a.seed === src.monster.seed); if (e && e.doplnky && e.doplnky.length) wear(obj, e.doplnky); }
   const dis = prepareDissolve(obj);
@@ -200,7 +203,7 @@ async function buildFor(src) {
   const fit = Math.min(1, box.userData.insideFit / maxDim);   // small enough to fit under the lid
   const show = Math.min(1, 0.95 / maxDim);                     // size when it climbs out to be admired
   try { await renderer.compileAsync(holder, camera, scene); } catch (e) { /* older GPUs compile on first draw */ }
-  return { ...src, ...describe(src), obj, bounce, holder, dis, fit, show, where: 'stage' };
+  return { ...src, ...describe(src), obj, bounce, holder, dis, fit, show, maxDim, where: 'stage' };
 }
 
 // ---------- Small animation helpers ----------
@@ -448,6 +451,7 @@ function startHero(c, start = performance.now()) {
 }
 function shotTarget(name, now = performance.now()) {
   if (name === 'hero') return heroTarget(now);
+  if (name === 'pokoj') return roomTarget();
   const s = SHOTS[name];
   const fit = Math.min(1.9, Math.max(1, 0.8 / camera.aspect)); // narrow screens: step back
   const pos = s.pos.clone().sub(s.look).multiplyScalar(fit).add(s.look);
@@ -534,6 +538,7 @@ canvas.addEventListener('lostpointercapture', endLidDrag);
 
 canvas.addEventListener('pointerdown', e => {
   initAudio();
+  if (phase === 'pokoj') { if (!busy) roomPointerDown(e); return; }
   if (busy || !current || drag || lidDrag) return;
   setPointer(e);
   if (!raycaster.intersectObject(current.holder, true).length) {
@@ -561,6 +566,7 @@ canvas.addEventListener('pointermove', e => {
     hideBubble();
     if (shot === 'hero') shot = 'box'; // don't let the camera chase the finger
     scene.attach(current.holder);
+    if (drag.origin === 'stage' && srcOf(current)) showMarkers(true);
     drag.pos = current.holder.position.clone();
     drag.scale = current.holder.scale.x;
     play('whoosh');
@@ -599,6 +605,9 @@ const endDrag = e => {
   if (!d.moved) { if (tapHook) tapHook('tap'); else tapThing(current); return; }
   if (!d.canDrag) return;
   const c = current;
+  showMarkers(false);
+  const spot = !d.over && d.origin === 'stage' && srcOf(c) ? spotAtScreen(e.clientX, e.clientY) : null;
+  if (spot) { busy = true; (async () => { try { if (d.openedLid) setLid(false); await placeInRoom(spot); } finally { busy = false; } if (current) setPhase('stage'); else showPicker(); })(); return; }
   (async () => {
     try {
       if (d.over) {
@@ -802,6 +811,7 @@ function loop() {
     if (ud.monster) { ud.monster.update(t, camera.position); if (ud.monster.doplnkyUpdate) ud.monster.doplnkyUpdate(t); }
     if (ud.float && !reaction) current.obj.position.y = Math.sin(t * 1.7) * 0.04;
   }
+  updateDecor(t, dt);
   updateReaction(now);
   updateDrag(dt);
   updateFloaters(dt);
@@ -1022,17 +1032,25 @@ function setPhase(p) {
   $('cil-volba').hidden = true;
   $('pece').hidden = p !== 'care';
   tapHook = p === 'care' ? (k => k === 'stroke' ? pet() : tapThing(current)) : null;
-  shot = p === 'result' ? 'hero' : ['inside', 'closed', 'done'].includes(p) ? 'box' : p === 'care' ? 'care' : 'stage';
+  shot = p === 'pokoj' ? 'pokoj' : p === 'result' ? 'hero' : ['inside', 'closed', 'done'].includes(p) ? 'box' : p === 'care' ? 'care' : 'stage';
   const entry = albumEntry(c);
   if (entry) { ageCare(entry); const mon = c.obj.userData.monster; if (mon) mon.expr = { ...(mon.expr || {}), sad: !!entry.pece.bebi || moodOf(entry).avg < 25 }; }
   const readBtn = entry && c.where === 'stage' ? action('🔤 Čtení s příšerkou', async () => openReading()) : null;
   const careBtn = entry && c.where === 'stage' ? action(`💗 Starat se o příšerku ${moodOf(entry).emoji}`, async () => setPhase('care')) : null;
   const other = action('🔄 Vybrat něco jiného', () => showPicker());
-  if (p === 'stage') {
+  const toRoom = c && c.where === 'stage' && srcOf(c) ? action('🏠 Dát do pokojíčku', async () => openRoom()) : null;
+  if (p === 'pokoj') {
+    title = '🏠 Můj pokojíček';
+    const can = c && c.where === 'stage' && srcOf(c);
+    tip = can ? `Klepni na ✨ a ${c.name} tam postavíš. Na rámeček dej fotku. Posouvej prstem do stran.`
+      : 'Klepni na věc v pokoji a postavíš ji před krabici. Na rámeček dej fotku, na poličce jsou trofeje.';
+    main = action('⬅️ Zpět ke krabici', async () => { if (current) setPhase(current.where === 'box' ? (lidOpen ? 'inside' : 'closed') : 'stage'); else showPicker(); });
+    showMarkers(!!can);
+  } else if (p === 'stage') {
     title = `${c.name} čeká před krabicí`;
     tip = 'Zatáhni víko prstem nahoru, nebo to rovnou přetáhni do krabice.';
     main = action('📦 Otevřít krabici', LID_STEPS.stage);
-    extra = careBtn ? [careBtn, readBtn, other] : [other];
+    extra = careBtn ? [careBtn, readBtn, toRoom, other] : [toRoom, other].filter(Boolean);
   } else if (p === 'care') {
     const m = moodOf(entry), want = neediest(entry.pece);
     title = `${c.monster.name} ${m.text} ${m.emoji}`;
@@ -1078,7 +1096,8 @@ function setPhase(p) {
   mbDrop = p === 'closed' ? () => run(fireLaser) : null;
   const row = $('akce-dalsi');
   row.innerHTML = '';
-  for (const a of extra) {
+  if (p !== 'pokoj') showMarkers(false);
+  for (const a of extra.filter(Boolean)) {
     const b = document.createElement('button');
     b.className = 'druhe-tl';
     b.textContent = a.label;
@@ -1150,13 +1169,15 @@ function draggableToBox(el, getDrop) {
 }
 draggableToBox($('btn-hlavni'), () => mbDrop);
 
+// The picker leaves the scene as it is, so the child can change their mind and go back.
+let pickerBack = null;
 async function showPicker() {
-  // Clear the box first if something is inside.
-  if (current && current.where === 'box') { mistTarget = 0; await removeCurrent(); }
-  if (lidOpen) await setLid(false);
-  shot = 'stage';
+  pickerBack = current ? phase : null;
+  $('vyber-zpet').hidden = !pickerBack;
+  if (shot === 'pokoj' || shot === 'care') shot = 'stage';
   showStep('vyber');
 }
+$('vyber-zpet').addEventListener('click', () => { if (pickerBack && current) setPhase(pickerBack); pickerBack = null; });
 
 async function choose(src) {
   if (busy) return;
@@ -1220,6 +1241,7 @@ function renderAlbum() {
         if (!confirm(`Opravdu pustit příšerku ${a.name} na svobodu? Už se nevrátí.`)) return;
         album = album.filter(x => x !== a);
         saveAlbum();
+        takeFromRoom(a.seed);
         play('poof');
         speak(`Ahoj, ${a.name}! Ať se ti daří!`);
         if (current && current.type === 'monster' && current.monster.seed === a.seed) current.unsaved = true;
@@ -1512,7 +1534,8 @@ $('foto-vstup').addEventListener('change', async e => {
 function askPhotoKind(photo) {
   $('foto-nahled').src = photo.data;
   $('foto-dotaz').hidden = false;
-  speak('Co jsi vyfotila?');
+  $('foto-otazka').textContent = `Co jsi vyfotil${rod('a', '')}?`;
+  speak(`Co jsi vyfotil${rod('a', '')}?`);
   $('foto-dotaz').querySelectorAll('[data-druh]').forEach(b => {
     b.onclick = () => {
       play('tap');
@@ -1535,7 +1558,7 @@ let readLevel = store.get('kk-cteni-uroven', 1), readLower = store.get('kk-cteni
 let round = null, roundHelp = false, roundMiss = false, roundDone = false, spokenTask = 0;
 let readStats = store.get('kk-cteni-stat', {}), readHist = store.get('kk-cteni-hist', { 1: [], 2: [], 3: [], 4: [] });
 const suggested = {};
-const PRAISE = ['Výborně!', 'Super!', 'Paráda!', 'Bravo!', 'Skvělé čtení!', 'Jsi šikulka!'];
+const PRAISE = () => ['Výborně!', 'Super!', 'Paráda!', 'Bravo!', 'Skvělé čtení!', rod('Jsi šikulka!', 'Jsi šikula!')];
 const AGAIN = ['Ještě jednou!', 'Zkus to znovu.', 'Skoro! Zkus jiný.'];
 const pickOne = a => a[Math.floor(Math.random() * a.length)];
 
@@ -1617,7 +1640,7 @@ async function answer(ok, el, need) {
   play('giggle');
   sparkles.userData.emit(centerOf(c.obj).c, 40, 1.2, 0.3);
   const word = round.answer ? ' ' + round.answer.plain.toLowerCase() : '';
-  speak(pickOne(PRAISE) + word + (news ? '. ' + news.replace(/[^\p{L}\p{N}\s!?.,]/gu, '') : ''));
+  speak(pickOne(PRAISE()) + word + (news ? '. ' + news.replace(/[^\p{L}\p{N}\s!?.,]/gu, '') : ''));
   suggestLevel();
   const a = albumEntry(c);
   if (need) {
@@ -1690,7 +1713,7 @@ $('satnik').addEventListener('click', ev => { if (ev.target.id === 'satnik') $('
 // A short overview for parents: how each level goes, what is still hard, what is mastered.
 function openOverview() {
   const names = { 1: 'Písmenka', 2: 'Slabiky', 3: 'Slova', 4: 'Vzkazy' };
-  let html = `<p>Hvězdiček: <b>${stars}</b>, hodnost: <b>${hodnost(stars).ikona} ${hodnost(stars).nazev}</b>.<br>Když něco nejde, hra hned přidá schůdky: nejdřív písmenko nebo slabiku z toho slova, pak lehčí slovo se stejným začátkem a nakonec to původní. Těžké úkoly se míchají s tím, co už jde, a po dvou chybách přijde něco, co Maruška umí. Co přečte třikrát po sobě napoprvé, chodí už jen občas.</p>`;
+  let html = `<p>Hvězdiček: <b>${stars}</b>, hodnost: <b>${hodnost(stars).ikona} ${hodnost(stars).nazev}</b>.<br>Když něco nejde, hra hned přidá schůdky: nejdřív písmenko nebo slabiku z toho slova, pak lehčí slovo se stejným začátkem a nakonec to původní. Těžké úkoly se míchají s tím, co už jde, a po dvou chybách přijde něco, co ${hrac.jmeno} umí. Co přečte třikrát po sobě napoprvé, chodí už jen občas.</p>`;
   html += '<table><tr><th>Úroveň</th><th class="c">Úkolů</th><th class="c">Napoprvé</th><th class="c">Posledních 10</th></tr>';
   for (const l of [1, 2, 3, 4]) {
     const entries = Object.entries(readStats).filter(([k]) => k.startsWith(l + ':')).map(([, v]) => v);
@@ -1756,6 +1779,324 @@ $('aktualizace-ne').addEventListener('click', () => { $('aktualizace').hidden = 
 // ---------- Start ----------
 manager.onProgress = (url, done, total) => { loadBar.style.width = Math.round(done / total * 60) + '%'; };
 
+// ---------- The child's room: decorating it ----------
+// Things from the stage can be put on spots around the room (bed, pouf, shelf, floor), photos hang in frames,
+// and trophies for reading and for the monster collection stand on their own shelf.
+const POKOJ_FILES = new Set(['DiffuseTransmissionPlant', 'CarbonFibre', 'SpecularSilkPouf', 'IridescenceLamp', 'ToyCar']);
+const DEFAULT_POKOJ = { spots: { polickaA: { type: 'item', id: 'auticko' }, polickaC: { type: 'item', id: 'duhova' }, zemA: { type: 'item', id: 'micek' } }, frames: {}, trofeje: 0, sbirka: 0 };
+let pokoj = { ...DEFAULT_POKOJ, ...store.get('kk-pokoj', {}) };
+const decor = {};          // spot id → a built thing (same shape as `current`)
+let roomReady = false;     // don't save until the saved room is back
+const spotById = id => room.userData.spots.find(s => s.id === id);
+function srcOf(c) {
+  if (!c) return null;
+  if (c.type === 'item') return { type: 'item', id: c.item.id };
+  if (c.type === 'monster') return { type: 'monster', monster: { seed: c.monster.seed, name: c.monster.name, tint: c.monster.tint ?? null, gen: c.monster.gen || 1 } };
+  return null; // photos go into frames instead
+}
+function savePokoj() {
+  if (!roomReady) return;
+  const spots = {};
+  for (const [id, c] of Object.entries(decor)) { const s = srcOf(c); if (s) spots[id] = s; }
+  pokoj.spots = spots;
+  return store.set('kk-pokoj', pokoj);
+}
+function settleInSpot(c, spot) {
+  const h = c.holder;
+  room.add(h);
+  h.position.copy(spot.pos);
+  h.rotation.set(0, spot.rot || 0, 0);
+  h.scale.setScalar(Math.min(1, spot.size / c.maxDim));
+  h.userData.pokoj = { kind: 'deco', id: spot.id };
+  c.where = 'room'; c.spot = spot.id;
+  decor[spot.id] = c;
+}
+async function restoreRoom() {
+  await Promise.all(Object.entries(pokoj.spots || {}).map(async ([id, src]) => {
+    const spot = spotById(id);
+    if (!spot) return;
+    try {
+      let full;
+      if (src.type === 'item') {
+        const it = byId(src.id);
+        if (!it) return;
+        full = { type: 'item', item: { ...it, file: POKOJ_FILES.has(it.file) ? 'pokoj/' + it.file : it.file } };
+      } else full = src;
+      const c = await buildFor(full, { decor: true });
+      c.dis.uDis.value = 0;
+      if (!decor[id]) settleInSpot(c, spot); else disposeObj(c.holder);
+    } catch (e) { /* a missing model just leaves the spot empty */ }
+  }));
+  for (const f of room.userData.frames) if (pokoj.frames[f.id]) setFrame(f, pokoj.frames[f.id]);
+  roomReady = true;
+}
+// A monster can only be in one place: using it elsewhere takes it off its spot.
+function takeFromRoom(seed) {
+  for (const [id, c] of Object.entries(decor)) {
+    if (c.type === 'monster' && c.monster.seed === seed) { delete decor[id]; c.holder.removeFromParent(); disposeObj(c.holder); savePokoj(); }
+  }
+}
+function updateDecor(t, dt) {
+  for (const c of Object.values(decor)) {
+    const ud = c.obj.userData;
+    if (ud.mixer) ud.mixer.update(dt);
+    if (ud.monster) { ud.monster.update(t, camera.position); if (ud.monster.doplnkyUpdate) ud.monster.doplnkyUpdate(t); }
+    if (ud.float) c.obj.position.y = Math.sin(t * 1.7 + c.maxDim) * 0.04;
+  }
+  if (markers.visible) for (const m of markers.children) { const k = 1 + 0.18 * Math.sin(t * 4 + m.position.x * 3); m.scale.setScalar(m.userData.base * k); }
+}
+
+// Flying a thing along a little arc.
+async function fly(c, toPos, toScale, toRot = 0) {
+  const h = c.holder;
+  scene.attach(h);
+  const from = h.position.clone(), s0 = h.scale.x, r0 = h.rotation.y;
+  const lift = Math.max(0.5, from.distanceTo(toPos) * 0.3);
+  play('whoosh');
+  await animate(1.0, k => {
+    const e = ease.inOut(k);
+    h.position.lerpVectors(from, toPos, e);
+    h.position.y += Math.sin(e * Math.PI) * lift;
+    h.scale.setScalar(s0 + (toScale - s0) * e);
+    h.rotation.set(0, r0 + (toRot - r0) * e + e * Math.PI * 2, 0);
+    if (k > 0.1 && k < 0.9 && Math.random() < 0.35) sparkles.userData.emit(h.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.15, 0)), 2, 0.6, 0.2);
+  });
+}
+async function bringToStage(d) {
+  delete decor[d.spot];
+  d.holder.userData.pokoj = null;
+  await fly(d, spinner.getWorldPosition(new THREE.Vector3()), 1, 0);
+  spinner.add(d.holder);
+  d.holder.position.set(0, 0, 0); d.holder.rotation.set(0, 0, 0); d.holder.scale.setScalar(1);
+  d.where = 'stage'; d.spot = null; d.raised = false;
+  current = d;
+  play('place');
+}
+// Put what is on the stage onto a spot (whatever was there comes to the stage instead).
+async function placeInRoom(spot) {
+  const c = current;
+  if (!c || c.where !== 'stage' || !srcOf(c)) return;
+  const old = decor[spot.id];
+  current = null;
+  if (old) delete decor[spot.id];
+  const s = Math.min(1, spot.size / c.maxDim);
+  await Promise.all([fly(c, spot.pos, s, spot.rot || 0), old ? (old.spot = spot.id, bringToStage(old)) : null]);
+  settleInSpot(c, spot);
+  play('place');
+  sparkles.userData.emit(spot.pos.clone().add(new THREE.Vector3(0, 0.2, 0)), 16, 0.9, 0.3);
+  if (!savePokoj()) showBubble('Pokojíček se nepodařilo uložit, v telefonu je málo místa.');
+  speak(`${c.name} je teď v pokojíčku.`);
+}
+
+// Sparkles that mark free spots (and frames) while there is something to put there.
+const markers = new THREE.Group();
+markers.visible = false;
+scene.add(markers);
+function showMarkers(on) {
+  markers.clear();
+  markers.visible = on;
+  if (!on) return;
+  for (const s of room.userData.spots) {
+    if (decor[s.id]) continue;
+    const m = emojiSprite('✨', 0.26);
+    m.position.copy(s.pos).add(new THREE.Vector3(0, 0.16, 0.05));
+    m.userData = { base: 0.26, pokoj: { kind: 'spot', id: s.id } };
+    markers.add(m);
+  }
+}
+function spotAtScreen(x, y) {
+  let best = null, bd = 70;
+  for (const s of room.userData.spots) {
+    if (decor[s.id]) continue;
+    const v = s.pos.clone().add(new THREE.Vector3(0, 0.15, 0)).project(camera);
+    if (v.z > 1) continue;
+    const d = Math.hypot((v.x + 1) / 2 * innerWidth - x, (1 - v.y) / 2 * innerHeight - y);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+
+// Camera for the room: steps back and pans sideways with a finger.
+let roomPan = 0, roomPtr = null;
+function roomTarget() {
+  const back = 4.4; // room half-width
+  const portrait = camera.aspect < 1;
+  const pos = new THREE.Vector3(0, portrait ? 2.3 : 2.1, portrait ? 6.0 : 4.9), look = new THREE.Vector3(0, 1.25, -2.6);
+  const dist = pos.z + 1.5; // framed for the depth of the bed and the shelves
+  const half = dist * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
+  const maxX = Math.max(0, back - 0.2 - half);
+  const x = roomPan * maxX;
+  pos.x = x; look.x = x;
+  return { pos, look };
+}
+async function openRoom() {
+  hideBubble();
+  buildTrophies(true);
+  roomPan = 0;
+  setPhase('pokoj');
+}
+function roomPointerDown(e) {
+  roomPtr = { x: e.clientX, y: e.clientY, id: e.pointerId, pan0: roomPan, moved: false };
+  canvas.setPointerCapture(e.pointerId);
+}
+canvas.addEventListener('pointermove', e => {
+  if (!roomPtr || e.pointerId !== roomPtr.id) return;
+  const dx = e.clientX - roomPtr.x;
+  if (!roomPtr.moved && Math.abs(dx) < 12) return;
+  roomPtr.moved = true;
+  roomPan = THREE.MathUtils.clamp(roomPtr.pan0 - dx / (innerWidth * 0.45), -1, 1);
+});
+const roomUp = e => {
+  if (!roomPtr || e.pointerId !== roomPtr.id) return;
+  const p = roomPtr; roomPtr = null;
+  if (!p.moved && phase === 'pokoj' && !busy) roomTap(e);
+};
+canvas.addEventListener('pointerup', roomUp);
+canvas.addEventListener('pointercancel', e => { if (roomPtr && e.pointerId === roomPtr.id) roomPtr = null; });
+
+function roomTap(e) {
+  setPointer(e);
+  const targets = [...(markers.visible ? markers.children : []), ...Object.values(decor).map(c => c.holder), ...room.userData.frames.map(f => f.group), trophies];
+  const hits = raycaster.intersectObjects(targets, true);
+  for (const h of hits) {
+    let o = h.object;
+    while (o && !o.userData.pokoj) o = o.parent;
+    if (!o) continue;
+    const info = o.userData.pokoj;
+    initAudio();
+    if (info.kind === 'spot') { const spot = spotById(info.id); run(async () => { await placeInRoom(spot); }).then(() => setPhase('pokoj')); }
+    else if (info.kind === 'deco') {
+      const d = decor[info.id];
+      if (current && current.where === 'box') { showBubble('Krabice je zabraná. Nejdřív z ní vyndej, co je uvnitř.'); play('boing'); return; }
+      run(async () => {
+        if (current && srcOf(current)) await placeInRoom(spotById(info.id));
+        else { if (current) await removeCurrent(); await bringToStage(d); savePokoj(); speak(`${d.name} je před krabicí.`); }
+      }).then(() => setPhase('pokoj'));
+    } else if (info.kind === 'frame') openFramePicker(room.userData.frames.find(f => f.id === info.id));
+    else if (info.kind === 'trophy') { play(info.got ? 'giggle' : 'tap'); showBubble(info.text); speak(info.text.replace(/[^\p{L}\p{N}\s!?.,]/gu, '')); if (info.got) sparkles.userData.emit(o.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.15, 0)), 14, 0.7, 0.2); }
+    return;
+  }
+}
+
+// Frames: a monster picture from the album or one of the child's photos.
+for (const f of room.userData.frames) f.group.userData.pokoj = { kind: 'frame', id: f.id };
+function setFrame(f, url) {
+  const m = f.img.material;
+  if (!url) { m.map = f.empty; m.needsUpdate = true; return; }
+  texLoader.load(url, t => {
+    t.colorSpace = THREE.SRGBColorSpace;
+    const ia = t.image.width / t.image.height, pa = 0.4 / 0.5;
+    if (ia > pa) { t.repeat.set(pa / ia, 1); t.offset.set((1 - pa / ia) / 2, 0); } else { t.repeat.set(1, ia / pa); t.offset.set(0, (1 - ia / pa) / 2); }
+    if (m.map && m.map !== f.empty) m.map.dispose();
+    m.map = t; m.needsUpdate = true;
+  });
+}
+function shrinkImage(url, max = 256) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      res(c.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => res(null);
+    img.src = url;
+  });
+}
+function openFramePicker(f) {
+  play('tap');
+  const grid = $('ramecek-mrizka');
+  grid.innerHTML = '';
+  const pickIt = async url => {
+    $('ramecek').hidden = true;
+    const small = url ? await shrinkImage(url) : null;
+    if (url && !small) return;
+    if (small) pokoj.frames[f.id] = small; else delete pokoj.frames[f.id];
+    setFrame(f, small);
+    if (!savePokoj()) showBubble('Fotku se nepodařilo uložit, v telefonu je málo místa.');
+    play('place');
+    sparkles.userData.emit(f.group.getWorldPosition(new THREE.Vector3()), 14, 0.7, 0.25);
+  };
+  for (const a of album) if (a.thumb) grid.append(tile({ label: a.name, img: a.thumb, onClick: () => pickIt(a.thumb) }));
+  for (const p of photos) grid.append(tile({ label: 'Fotka', img: p.data, onClick: () => pickIt(p.data) }));
+  if (!album.length && !photos.length) grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;opacity:.8">Zatím nemáš žádné obrázky. Vyrob příšerku nebo něco vyfoť!</p>';
+  if (pokoj.frames[f.id]) grid.append(tile({ label: 'Sundat obrázek', icon: '🧹', onClick: () => pickIt(null) }));
+  $('ramecek').hidden = false;
+}
+$('ramecek-zavrit').addEventListener('click', () => { $('ramecek').hidden = true; });
+
+// Trophies: one cup for each reading rank, one medal for each size of the monster collection.
+const trophies = new THREE.Group();
+room.add(trophies);
+const SBIRKA_MEDAILE = [1, 5, 10, 21];
+function trophyList() {
+  pokoj.sbirka = Math.max(pokoj.sbirka || 0, album.length);
+  const cups = HODNOSTI.slice(1).map(h => {
+    const name = hrac.kluk ? h.kluk : h.nazev, got = stars >= h.od;
+    return { kind: 'cup', icon: h.ikona, got, text: got ? `${h.ikona} ${name}! Trofej za ${h.od} hvězdiček ze čtení.` : `Tuhle trofej dostaneš za ${h.od} hvězdiček ze čtení. Teď jich máš ${stars}.` };
+  });
+  const medals = SBIRKA_MEDAILE.map(n => {
+    const got = pokoj.sbirka >= n;
+    const word = n === 1 ? 'první příšerku' : `${n} příšerek`;
+    return { kind: 'medal', label: String(n), got, text: got ? `🏅 Medaile za ${word} ve sbírce!` : `Tuhle medaili dostaneš, až budeš mít ${word} ve sbírce.` };
+  });
+  return [...cups, ...medals];
+}
+// Merges geometries of different kinds (indexed or not) into one, keeping position, normal and uv.
+function mergeAll(geos) {
+  return mergeGeometries(geos.map(g => {
+    const n = g.index ? g.toNonIndexed() : g;
+    for (const k of Object.keys(n.attributes)) if (!['position', 'normal', 'uv'].includes(k)) n.deleteAttribute(k);
+    n.clearGroups();
+    return n;
+  }));
+}
+const goldMat = new THREE.MeshPhysicalMaterial({ color: 0xf5c542, metalness: 1, roughness: 0.22, clearcoat: 0.5 });
+const ghostMat = new THREE.MeshStandardMaterial({ color: 0xbfb6d6, roughness: 0.6, transparent: true, opacity: 0.45 });
+const cupGeo = new THREE.LatheGeometry([[0.0, 0], [0.07, 0], [0.07, 0.02], [0.02, 0.035], [0.015, 0.09], [0.03, 0.1], [0.075, 0.13], [0.085, 0.2], [0.08, 0.205]].map(([x, y]) => new THREE.Vector2(x, y)), 24);
+const fullCupGeo = mergeAll([cupGeo, ...[-1, 1].map(s => new THREE.TorusGeometry(0.035, 0.008, 8, 16, Math.PI).rotateZ(s > 0 ? -Math.PI / 2 : Math.PI / 2).translate(s * 0.085, 0.155, 0))]);
+function medalTexture(label) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f5c542'; g.beginPath(); g.arc(64, 64, 62, 0, 7); g.fill();
+  g.strokeStyle = '#c9971c'; g.lineWidth = 8; g.beginPath(); g.arc(64, 64, 52, 0, 7); g.stroke();
+  g.fillStyle = '#8a5a00'; g.font = '900 60px Nunito, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(label, 64, 68);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function buildTrophies(announce = false) {
+  for (const o of [...trophies.children]) { o.removeFromParent(); o.traverse(m => { if (!m.isMesh && !m.isSprite) return; for (const mt of [m.material].flat()) if (mt !== goldMat && mt !== ghostMat) { if (mt.map && !m.isSprite) mt.map.dispose(); mt.dispose(); } }); }
+  const list = trophyList(), slots = room.userData.trophySlots;
+  list.forEach((tr, i) => {
+    const g = new THREE.Group();
+    g.position.copy(slots[i]);
+    g.userData.pokoj = { kind: 'trophy', got: tr.got, text: tr.text };
+    if (tr.kind === 'cup') {
+      const cup = new THREE.Mesh(fullCupGeo, tr.got ? goldMat : ghostMat); cup.castShadow = tr.got; g.add(cup);
+      if (tr.got) { const sp = emojiSprite(tr.icon, 0.1); sp.position.set(0, 0.29, 0.02); g.add(sp); }
+    } else {
+      const stand = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.03), new THREE.MeshStandardMaterial({ color: tr.got ? 0xff5f9e : 0xbfb6d6, roughness: 0.6 }));
+      stand.position.y = 0.05; g.add(stand);
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.015, 28), tr.got ? [goldMat, new THREE.MeshStandardMaterial({ map: medalTexture(tr.label), metalness: 0.6, roughness: 0.3 }), goldMat] : ghostMat);
+      disc.rotation.x = Math.PI / 2; disc.position.set(0, 0.16, 0.02); disc.castShadow = true; g.add(disc);
+    }
+    trophies.add(g);
+  });
+  const got = list.filter(t => t.got).length;
+  if (announce && got > (pokoj.trofeje || 0)) {
+    setTimeout(() => { showBubble('🏆 Na poličce máš novou trofej! Klepni na ni.'); play('giggle'); }, 900);
+    sparkles.userData.emit(new THREE.Vector3(3.3, 1.7, -2.4), 30, 1.2, 0.5);
+  }
+  pokoj.trofeje = got;
+  savePokoj();
+}
+$('btn-pokoj').addEventListener('click', () => {
+  if (busy || $('panel').classList.contains('schovany') && phase !== 'pokoj') return;
+  initAudio(); play('tap');
+  if (phase === 'pokoj') { $('btn-hlavni').click(); return; }
+  openRoom();
+});
+
 async function placeProps() {
   // Real furniture and toys from the catalog decorate the room.
   await Promise.all(room.userData.props.map(async p => {
@@ -1765,6 +2106,11 @@ async function placeProps() {
       const g = await buildItem({ ...it, file: 'pokoj/' + it.file, size: p.size, rot: p.rot, float: 0, anim: null });
       g.position.copy(p.pos);
       room.add(g);
+      if (p.spot) {
+        g.updateMatrixWorld(true);
+        const bb = new THREE.Box3().setFromObject(g, true);
+        room.userData.spots.push({ id: p.spot.id, pos: new THREE.Vector3(p.pos.x, bb.max.y - 0.03, p.pos.z), size: p.spot.size, rot: 0.3 });
+      }
     } catch (e) { /* a missing prop is not a problem */ }
   }));
 }
@@ -1779,6 +2125,8 @@ async function start() {
   await Promise.all([placeProps(), loadItemGltf(first), new Promise(r => { manager.onLoad = r; setTimeout(r, 8000); })]);
   loadBar.style.width = '80%';
   await captureRoomReflections();
+  buildTrophies();
+  restoreRoom();
   requestAnimationFrame(loop);
   await putOnStage({ type: 'item', item: first }, { appear: false });
   loadBar.style.width = '100%';
@@ -1788,7 +2136,7 @@ async function start() {
   checkForUpdate();
 
   if (params.has('nahledy')) { window.__kk = { ITEMS, putOnStage, spinner, camera, renderer, resize }; $('nacitani').classList.add('pryc'); return; }
-  if (params.has('demo')) { window.__kk = { choose, putOnStage, current: () => current, ITEMS, newMonsterSpec, setPhase, phase: () => phase, startSpecial, album: () => album, setAlbum: a => { album = a; saveAlbum(); }, renderer, scene, camera, box,
+  if (params.has('demo')) { window.__kk = { choose, putOnStage, current: () => current, ITEMS, newMonsterSpec, setPhase, phase: () => phase, startSpecial, album: () => album, openRoom, room, decor: () => decor, placeInRoom, spots: () => room.userData.spots, setAlbum: a => { album = a; saveAlbum(); }, renderer, scene, camera, box,
     screen: which => { const v = (which === 'box' ? box.localToWorld(new THREE.Vector3(0, 0.9, 0)) : centerOf(current.obj).c).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; } }; }
 
   $('start').hidden = false;
@@ -1796,8 +2144,24 @@ async function start() {
     initAudio();
     play('poof');
     $('nacitani').classList.add('pryc');
-    speak('Ahoj Maruško! Tohle je kouzelná krabice. Otevři ji, dej dovnitř, co chceš, a laser to promění!');
-    setPhase('stage');
+    const go = () => { speak(`Ahoj ${vokativ(hrac.jmeno)}! Tohle je kouzelná krabice. Otevři ji, dej dovnitř, co chceš, a laser to promění!`); setPhase('stage'); };
+    if (known()) go(); else askName(go);
   }, { once: true });
 }
+// Player name: asked once at the start (skipping keeps Maruška), changeable from the parents' overview.
+function askName(done) {
+  const w = $('jmeno'), inp = $('jmeno-vstup');
+  let kluk = hrac.kluk;
+  inp.value = known() ? hrac.jmeno : '';
+  const mark = () => w.querySelectorAll('[data-kluk]').forEach(b => b.classList.toggle('vybrano', (b.dataset.kluk === '1') === kluk));
+  w.querySelectorAll('[data-kluk]').forEach(b => { b.onclick = () => { kluk = b.dataset.kluk === '1'; mark(); play('place'); }; });
+  mark();
+  const close = jmeno => { setHrac({ jmeno, kluk }); w.hidden = true; inp.blur(); done && done(); };
+  $('jmeno-ok').onclick = () => close(inp.value);
+  $('jmeno-preskocit').onclick = () => close(known() ? hrac.jmeno : '');
+  inp.onkeydown = e => { if (e.key === 'Enter') close(inp.value); };
+  w.hidden = false;
+}
+$('prehled-jmeno').addEventListener('click', () => { $('prehled').hidden = true; askName(() => { if (phase === 'cteni') renderRank(); }); });
+
 start();
