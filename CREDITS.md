@@ -42,4 +42,6 @@ Textury z repozitáře [three.js](https://github.com/mrdoob/three.js) (MIT):
 
 Dětský pokojíček (tapeta, okno, police, knížky, obrázek, girlanda, koberec) je nakreslený přímo v kódu (`www/js/room.js`).
 
+Písmo [Fredoka](https://fonts.google.com/specimen/Fredoka) (SIL Open Font License 1.1), autorka Milena Brandão, je ve složce `www/fonty/`.
+
 Knihovna [three.js](https://threejs.org/) (MIT). Android obal [Capacitor](https://capacitorjs.com/) (MIT).

@@ -12,3 +12,4 @@ android/keystore.properties
 *.jks
 *.keystore
 www/vendor/
+tests/out/

@@ -158,7 +158,7 @@ function makeTrophyShelf(BACK) {
   g.position.set(3.3, 0, BACK + 0.14);
   const mat = new THREE.MeshStandardMaterial({ color: 0xc7a2ff, roughness: 0.45 });
   const slots = [];
-  for (const [i, y] of [1.2, 1.78].entries()) {
+  for (const y of [1.2, 1.78]) {
     const b = new THREE.Mesh(new RoundedBoxGeometry(1.55, 0.05, 0.26, 2, 0.015), mat);
     b.position.y = y; b.castShadow = b.receiveShadow = true; g.add(b);
     for (const s of [-1, 1]) { const br = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.12, 0.2), mat); br.position.set(s * 0.6, y - 0.08, -0.02); g.add(br); }

@@ -2,13 +2,13 @@
   "appId": "cz.koprfkingl.krabice",
   "appName": "Kouzelná krabice",
   "webDir": "www",
-  "backgroundColor": "#0b0a12",
+  "backgroundColor": "#ffe9f3",
   "android": {
     "allowMixedContent": false
   },
   "plugins": {
     "SystemBars": {
-      "style": "DARK",
+      "style": "LIGHT",
       "insetsHandling": "css"
     }
   }

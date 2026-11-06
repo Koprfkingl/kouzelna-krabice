@@ -1,4 +1,4 @@
-# Sestaví Android APK. Pushni tag jako v1.0.1 nebo klikni na "Run workflow" a APK se objeví v sekci Releases.
+# Nejdřív hru otestuje (npm test), pak sestaví Android APK. Pushni tag jako v1.0.1 nebo klikni na "Run workflow" a APK se objeví v sekci Releases.
 name: Sestavení APK
 
 on:
@@ -11,8 +11,30 @@ permissions:
   contents: write
 
 jobs:
+  test:
+    name: Testy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run vendor
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: snimky-z-testu
+          path: tests/out/*.png
+
   android:
     name: Android APK
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

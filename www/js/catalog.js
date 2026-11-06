@@ -21,11 +21,11 @@ export const ITEMS = [
   { id: 'kytka', kind: 'zive', name: 'Kytka v květináči', acc: 'kytku v květináči', g: 'f', file: 'DiffuseTransmissionPlant', size: 1.15, rot: 0 },
 
   { id: 'mandarinka', kind: 'veci', name: 'Mandarinka', acc: 'mandarinku', g: 'f', file: 'MandarinOrange', size: 0.45, rot: 0 },
-  { id: 'micek', kind: 'veci', name: 'Míček', acc: 'míček', g: 'm', file: 'CarbonFibre', size: 0.55, rot: 0 },
+  { id: 'micek', kind: 'veci', name: 'Míček', acc: 'míček', g: 'm', file: 'CarbonFibre', size: 0.55, rot: 0, ton: 0x4fb3ff },
   { id: 'olivy', kind: 'veci', name: 'Miska s olivami', acc: 'misku s olivami', g: 'f', file: 'IridescentDishWithOlives', size: 0.75, rot: 0 },
   { id: 'jantar', kind: 'veci', name: 'Komár v jantaru', acc: 'komára v jantaru', g: 'm', file: 'MosquitoInAmber', size: 0.6, rot: 0 },
   { id: 'taburet', kind: 'veci', name: 'Hedvábný taburet', acc: 'hedvábný taburet', g: 'm', file: 'SpecularSilkPouf', size: 0.8, rot: 0 },
-  { id: 'pohovka', kind: 'veci', name: 'Sametová pohovka', acc: 'sametovou pohovku', g: 'f', file: 'GlamVelvetSofa', size: 1.25, rot: 0.3 },
+  { id: 'pohovka', kind: 'veci', name: 'Sametová pohovka', acc: 'sametovou pohovku', g: 'f', file: 'GlamVelvetSofa', size: 1.25, rot: 0.3, ton: 0xff8fc8 },
   { id: 'avokado', kind: 'veci', name: 'Avokádo', acc: 'avokádo', g: 'n', file: 'Avocado', size: 0.55, rot: 0 },
   { id: 'lahev', kind: 'veci', name: 'Láhev', acc: 'láhev', g: 'f', file: 'WaterBottle', size: 0.85, rot: 0 },
   { id: 'lucerna', kind: 'veci', name: 'Lucerna', acc: 'lucernu', g: 'f', file: 'Lantern', size: 1.1, rot: 0 },

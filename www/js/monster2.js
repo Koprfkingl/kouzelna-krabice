@@ -112,7 +112,7 @@ export function makeMonster2(seed, opts = {}) {
   }
   geo.computeVertexNormals();
   geo.computeBoundingBox();
-  const bottom = geo.boundingBox.min.y, top = geo.boundingBox.max.y;
+  const bottom = geo.boundingBox.min.y;
 
   let bodyMat;
   if (skin === 'jelly') bodyMat = new THREE.MeshPhysicalMaterial({ color: baseColor, roughness: 0.1, transparent: true, opacity: 0.82, clearcoat: 1, clearcoatRoughness: 0.05, emissive: baseColor, emissiveIntensity: 0.2 });

@@ -39,9 +39,10 @@ Kompromisy: liška je nízkopolygonový model (realistické volně licencované 
 ## Nová verze
 
 1. Uprav hru ve složce `www/` (obyčejná webová stránka). Pro zkoušení v počítači: `npm install`, `npm run vendor` a pak třeba `python3 -m http.server -d www` a otevři http://localhost:8000.
-2. Zvyš `version` v `package.json` a pushni do `main`.
+2. Před pushem spusť `npm run lint` (najde překlepy v názvech mezi soubory) a `npm test` (projde hru v prohlížeči bez okna, trvá pár minut, snímky ukládá do `tests/out/`).
+3. Zvyš `version` v `package.json` a pushni do `main`.
 
-GitHub Actions sestaví APK a protože je verze nová, samo vytvoří vydání. Aplikace v telefonu ho při dalším spuštění najde a nabídne.
+GitHub Actions hru nejdřív otestuje. Když testy projdou, sestaví APK a protože je verze nová, samo vytvoří vydání. Aplikace v telefonu ho při dalším spuštění najde a nabídne.
 
 ## Podpis pro Android
 
@@ -59,7 +60,18 @@ Secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_AL
 ## Struktura
 
 - `www/index.html`, `www/styles.css`: obrazovka a ovládání
-- `www/js/main.js`: scéna, světla, průběh proměny, ovládání, sbírka, fotky
+- `www/js/main.js`: průběh proměny, krabice a víko, kamera, ovládání prstem, panel s tlačítky, sbírka, fotky, start
+- `www/js/scena.js`: vykreslování, světla, pokoj, krabice a otočný stolek
+- `www/js/stav.js`: společný stav hry (co je na stolku, v jaké je hra fázi, sbírka, hvězdičky)
+- `www/js/util.js`: drobné pomůcky (ukládání, animace, parametry v adrese)
+- `www/js/pece.js`: péče o příšerky
+- `www/js/citanka.js`: čtení s příšerkou, šatník a přehled pro rodiče
+- `www/js/pokojicek.js`: zdobení pokojíčku, rámečky, poháry a ozdoby
+- `www/js/kniha.js`, `www/js/kouzla.js`: dvě věci v krabici a Kniha kouzel
+- `www/js/schovka.js`: schovávaná se čtením
+- `www/js/den.js`, `www/js/ukoly.js`: úkoly dne, dárek a kalendář
+- `www/js/room.js`, `www/js/ozdoby.js`, `www/js/hrac.js`: model pokojíčku, ozdoby, jméno hráče
+- `www/js/vzhled.js`: kreslený vzhled (stínování ve třech stupních, obrysy, světla). Adresa s `?realisticky` ukáže původní realistický vzhled pro srovnání.
 - `www/js/box.js`: kouzelná krabice, laserový paprsek a jiskry
 - `www/js/monster.js`, `www/js/monster2.js`: generátory příšerek (první generace zůstává kvůli uloženým příšerkám)
 - `www/js/dissolve.js`: efekt rozpouštění laserem
@@ -69,5 +81,6 @@ Secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_AL
 - `www/js/audio.js`: zvuky (syntetizované, bez souborů)
 - `www/modely/`: 3D modely, `www/nahledy/`: obrázky do nabídky, `www/textury/`: dřevo a HDR prostředí
 - `android/`: Android projekt (Capacitor)
+- `tests/hra.test.mjs`: automatický test celé hry
 
 Autorství modelů a textur je v [CREDITS.md](CREDITS.md).
