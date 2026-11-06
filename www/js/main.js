@@ -9,6 +9,7 @@ import { makeBox, makeSparkles } from './box.js';
 import { makeRoom } from './room.js';
 import { VERZE } from './verze.js';
 import { prepareDissolve } from './dissolve.js';
+import { newRound, syllableHTML } from './cteni.js';
 import { initAudio, play, setMuted, muted } from './audio.js';
 
 const $ = id => document.getElementById(id);
@@ -1022,19 +1023,21 @@ function setPhase(p) {
   shot = p === 'result' ? 'hero' : ['inside', 'closed', 'done'].includes(p) ? 'box' : p === 'care' ? 'care' : 'stage';
   const entry = albumEntry(c);
   if (entry) { ageCare(entry); const mon = c.obj.userData.monster; if (mon) mon.expr = { ...(mon.expr || {}), sad: !!entry.pece.bebi || moodOf(entry).avg < 25 }; }
+  const readBtn = entry && c.where === 'stage' ? action('🔤 Čtení s příšerkou', async () => openReading()) : null;
   const careBtn = entry && c.where === 'stage' ? action(`💗 Starat se o příšerku ${moodOf(entry).emoji}`, async () => setPhase('care')) : null;
   const other = action('🔄 Vybrat něco jiného', () => showPicker());
   if (p === 'stage') {
     title = `${c.name} čeká před krabicí`;
     tip = 'Zatáhni víko prstem nahoru, nebo to rovnou přetáhni do krabice.';
     main = action('📦 Otevřít krabici', LID_STEPS.stage);
-    extra = careBtn ? [careBtn, other] : [other];
+    extra = careBtn ? [careBtn, readBtn, other] : [other];
   } else if (p === 'care') {
     const m = moodOf(entry), want = neediest(entry.pece);
     title = `${c.monster.name} ${m.text} ${m.emoji}`;
     tip = want ? `${want.want} Klepni na ${want.icon}. Můžeš ji i hladit prstem.` : 'Je spokojená! Můžeš ji hladit prstem.';
     renderCare();
     main = action('⬅️ Hotovo', async () => setPhase('stage'));
+    extra = [readBtn];
   } else if (p === 'stageOpen') {
     title = 'Krabice je otevřená!';
     tip = 'Přetáhni to prstem do krabice.';
@@ -1171,7 +1174,7 @@ async function choose(src) {
 }
 
 function showStep(which) {
-  for (const s of ['vyber', 'akce']) $('krok-' + s).hidden = s !== which;
+  for (const s of ['vyber', 'akce', 'cteni']) $('krok-' + s).hidden = s !== which;
   if (which === 'vyber') renderSource();
   hidePanel(false);
 }
@@ -1521,6 +1524,113 @@ function askPhotoKind(photo) {
   });
 }
 $('foto-zrusit').addEventListener('click', () => { $('foto-dotaz').hidden = true; });
+
+// ---------- Reading with the monster ----------
+// Systematic phonics in small steps: letter → syllable → word → a short message. Syllables are coloured
+// like in a Czech first-grade reader and can be tapped to hear them. A star for every task solved on the first try.
+const READ_LEVELS = [{ id: 1, label: 'Písmenka', icon: 'A' }, { id: 2, label: 'Slabiky', icon: 'MA' }, { id: 3, label: 'Slova', icon: 'PES' }, { id: 4, label: 'Vzkazy', icon: '💌' }];
+let readLevel = store.get('kk-cteni-uroven', 1), readLower = store.get('kk-cteni-mala', false), stars = store.get('kk-hvezdy', 0);
+let round = null, roundHelp = false, roundMiss = false, roundDone = false, spokenTask = 0;
+const PRAISE = ['Výborně!', 'Super!', 'Paráda!', 'Bravo!', 'Skvělé čtení!', 'Jsi šikulka!'];
+const AGAIN = ['Ještě jednou!', 'Zkus to znovu.', 'Skoro! Zkus jiný.'];
+const pickOne = a => a[Math.floor(Math.random() * a.length)];
+
+function openReading() {
+  phase = 'cteni';
+  shot = 'care';
+  tapHook = k => k === 'stroke' ? pet() : tapThing(current);
+  hideBubble();
+  $('pece').hidden = true;
+  showStep('cteni');
+  tabs($('zalozky-cteni'), readLevel, id => { readLevel = id; store.set('kk-cteni-uroven', id); spokenTask = 0; openReading(); }, READ_LEVELS);
+  $('cteni-hvezdy').textContent = '⭐ ' + stars;
+  $('cteni-velikost').textContent = readLower ? 'ABC' : 'abc';
+  nextRound();
+}
+function renderCard() {
+  const k = $('cteni-karta');
+  k.classList.toggle('velke-pismeno', round.level <= 2);
+  k.innerHTML = syllableHTML(round.text, readLower, round.level === 4) + (round.level === 4 ? `<span class="podpis">${current.monster.name}</span>` : '');
+  k.querySelectorAll('.slabika').forEach(el => el.addEventListener('click', () => {
+    initAudio();
+    if (round.level <= 2) roundHelp = true; // hearing the letter itself gives the answer away
+    flashSyl(el);
+    speak(el.dataset.s.toLowerCase());
+  }));
+}
+function flashSyl(el) { el.classList.add('cte'); setTimeout(() => el.classList.remove('cte'), 700); }
+function nextRound() {
+  if (phase !== 'cteni' || !current) return;
+  round = newRound(readLevel);
+  roundHelp = roundMiss = roundDone = false;
+  renderCard();
+  $('cteni-ukol').textContent = round.task;
+  if (spokenTask !== readLevel) { spokenTask = readLevel; speak(round.task); }
+  const grid = $('cteni-volby');
+  grid.innerHTML = '';
+  if (round.need) {
+    const others = NEEDS.filter(n => n.id !== round.need).sort(() => Math.random() - 0.5).slice(0, 2);
+    for (const n of [NEEDS.find(n => n.id === round.need), ...others].sort(() => Math.random() - 0.5)) {
+      grid.append(tile({ label: n.label, icon: n.icon, onClick: el => answer(n.id === round.need, el, n) }));
+    }
+  } else {
+    for (const ch of round.choices) grid.append(tile({ label: '', icon: ch.e, onClick: el => answer(ch === round.answer, el) }));
+    grid.querySelectorAll('.jmeno').forEach(j => j.remove());
+  }
+}
+async function answer(ok, el, need) {
+  if (roundDone || busy) return;
+  const c = current;
+  if (!ok) {
+    roundMiss = true;
+    el.classList.add('spatne');
+    play('boing');
+    speak(pickOne(AGAIN));
+    animate(0.5, k => { c.bounce.rotation.y = Math.sin(k * Math.PI * 4) * 0.25 * (1 - k); }).then(() => { c.bounce.rotation.y = 0; });
+    return;
+  }
+  roundDone = true;
+  el.classList.add('dobre');
+  const star = !roundHelp && !roundMiss;
+  if (star) {
+    stars++;
+    store.set('kk-hvezdy', stars);
+    $('cteni-hvezdy').textContent = '⭐ ' + stars;
+    floatUp('⭐', centerOf(c.obj).c.add(new THREE.Vector3(0, 0.3, 0.2)), { n: 3, spread: 0.5, size: 0.2 });
+  }
+  play('giggle');
+  sparkles.userData.emit(centerOf(c.obj).c, 40, 1.2, 0.3);
+  const word = round.answer ? ' ' + round.answer.plain.toLowerCase() : '';
+  speak(pickOne(PRAISE) + word);
+  const a = albumEntry(c);
+  if (need) {
+    await wait(1.2);
+    if (phase !== 'cteni') return;
+    await doCare(need);
+  } else {
+    if (a) { ageCare(a); a.pece.hra = Math.min(100, a.pece.hra + 6); saveAlbum(); }
+    await hop(c.bounce, 0.22, 0.5);
+    await wait(1.4);
+  }
+  nextRound();
+}
+$('cteni-napoveda').addEventListener('click', () => {
+  if (!round) return;
+  initAudio(); play('tap');
+  roundHelp = true;
+  // syllables light up one after another while they are read, then the whole thing
+  const els = [...$('cteni-karta').querySelectorAll('.slabika')];
+  els.forEach((el, i) => setTimeout(() => flashSyl(el), i * 650));
+  speak(round.hint.toLowerCase());
+});
+$('cteni-velikost').addEventListener('click', () => {
+  play('tap');
+  readLower = !readLower;
+  store.set('kk-cteni-mala', readLower);
+  $('cteni-velikost').textContent = readLower ? 'ABC' : 'abc';
+  if (round) renderCard();
+});
+$('cteni-zpet').addEventListener('click', () => { play('tap'); round = null; setPhase(albumEntry(current) ? 'care' : 'stage'); });
 
 // ---------- Updates ----------
 // The app asks GitHub for the newest release; if it is newer, a button offers to download it.

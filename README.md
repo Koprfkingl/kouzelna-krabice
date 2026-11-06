@@ -10,6 +10,7 @@ Každý krok kouzla je jedno tlačítko: **otevřít krabici → dát věc dovni
 - **Každý krok jde udělat prstem**: víko se otevře tahem nahoru a zavře tahem dolů, věci se přetahují do krabice i ven a laser spustíš přetažením blesku (nebo obrázku, na co se má věc proměnit) na krabici. Tlačítka fungují pořád taky.
 - **Sbírka příšerek** (📖): každá nová příšerka se uloží, nejvýš 21. Když je sbírka plná, můžeš některou pustit na svobodu.
 - **Péče o příšerky**: příšerku ze sbírky můžeš nakrmit, napojit, uspat, pomazlit (i hlazením prstem), hrát si s ní a utěšit ji, když ji něco bolí. Potřeby jí pomalu ubývají i když hra neběží.
+- **Čtení s příšerkou** (🔤 u příšerky ze sbírky): čtyři úrovně podle systematické foniky, jak se čtení učí v první třídě: písmenko, slabika, slovo a vzkaz od příšerky. Slabiky jsou barevné jako ve slabikáři a klepnutím se přečtou nahlas. Vzkazy typu „MÁM HLAD.“ se splní péčí o příšerku. Za každý úkol vyřešený napoprvé bez nápovědy je hvězdička. Přepínač ABC/abc mění velká a malá písmena.
 - Klepnutí na věc před krabicí ji rozpohybuje: rádio hraje, lampa svítí, fotoaparát blýskne, autíčko se otočí, příšerka se zachichotá. Kdo kliká jako o závod, dočká se sedmi různých legračních reakcí.
 - Hra mluví česky (hlasem telefonu) a funguje bez internetu.
 - Aplikace si při spuštění zkontroluje, jestli na GitHubu není novější verze, a nabídne její stažení.
@@ -56,6 +57,7 @@ Secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_AL
 - `www/js/monster.js`, `www/js/monster2.js`: generátory příšerek (první generace zůstává kvůli uloženým příšerkám)
 - `www/js/dissolve.js`: efekt rozpouštění laserem
 - `www/js/catalog.js`: seznam věcí, zvířat a strojů
+- `www/js/cteni.js`: slova s obrázky rozdělená na slabiky a vzkazy pro čtení
 - `www/js/audio.js`: zvuky (syntetizované, bez souborů)
 - `www/modely/`: 3D modely, `www/nahledy/`: obrázky do nabídky, `www/textury/`: dřevo a HDR prostředí
 - `android/`: Android projekt (Capacitor)
