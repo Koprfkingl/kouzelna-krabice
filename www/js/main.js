@@ -35,27 +35,26 @@ function loadItemGltf(item) {
   return gltfCache[item.file];
 }
 
-// Big cartoon eyes on a bone of the model (the fox's own painted eyes are too small to see).
-// oci: { bone, pos: [x, y, z] of the right eye in the bone's space (left is mirrored in z), r: radius, look: [x, y, z] }
-const eyeWhite = new THREE.MeshBasicMaterial({ color: 0xffffff });
+// Small dark cartoon eyes set into the face, on a bone so they move with the head
+// (the fox's own painted eyes are too small to see in the cartoon look).
+// oci: { bone, pos: [x, y, z] of one eye in the bone's space (the other is mirrored in z), r: size, out: the face's normal there }
 const eyeDark = new THREE.MeshBasicMaterial({ color: 0x1d1028 });
-eyeDark.userData.noOutline = true;
+const eyeShine = new THREE.MeshBasicMaterial({ color: 0xffffff });
 function addEyes(model, oci) {
   const bone = model.getObjectByName(oci.bone);
   if (!bone) return;
-  const look = new THREE.Vector3(...(oci.look || [1, 0, 0])).normalize();
+  const geo = new THREE.SphereGeometry(1, 20, 14), shineGeo = new THREE.SphereGeometry(1, 10, 8);
   for (const side of [1, -1]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(oci.r, 20, 14), eyeWhite);
+    const eye = new THREE.Group();
     eye.position.set(oci.pos[0], oci.pos[1], oci.pos[2] * side);
-    eye.scale.set(0.9, 1.15, 0.9);
-    const dir = new THREE.Vector3(look.x, look.y, look.z * side).normalize();
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(oci.r * 0.62, 16, 12), eyeDark);
-    pupil.position.copy(dir).multiplyScalar(oci.r * 0.55);
-    pupil.userData.noOutline = true;
-    const shine = new THREE.Mesh(new THREE.SphereGeometry(oci.r * 0.2, 10, 8), eyeWhite);
-    shine.position.copy(dir).multiplyScalar(oci.r * 1.05).add(new THREE.Vector3(0, oci.r * 0.3, 0));
-    shine.userData.noOutline = true;
-    eye.add(pupil, shine);
+    const out = new THREE.Vector3(oci.out[0], oci.out[1], oci.out[2] * side).normalize();
+    eye.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), out);
+    const ball = new THREE.Mesh(geo, eyeDark);
+    ball.scale.set(oci.r * 0.8, oci.r * 1.05, oci.r * 0.45); // a flat oval lying on the face
+    const shine = new THREE.Mesh(shineGeo, eyeShine);
+    shine.scale.setScalar(oci.r * 0.26);
+    shine.position.set(oci.r * 0.22 * side, oci.r * 0.38, oci.r * 0.36);
+    for (const m of [ball, shine]) { m.userData.noOutline = true; eye.add(m); }
     bone.add(eye);
   }
 }
@@ -90,7 +89,10 @@ async function buildItem(item) {
   if (item.anim && gltf.animations.length) {
     const mixer = new THREE.AnimationMixer(model);
     const clip = THREE.AnimationClip.findByName(gltf.animations, item.anim) || gltf.animations[0];
-    mixer.clipAction(clip).play();
+    // every copy starts somewhere else in the clip and runs a touch faster or slower, so two foxes never move in step
+    const action = mixer.clipAction(clip).play();
+    action.time = Math.random() * clip.duration;
+    action.timeScale = 0.85 + Math.random() * 0.3;
     g.userData.mixer = mixer;
     g.userData.clips = gltf.animations;
   }
