@@ -24,7 +24,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPrefere
 // Phones have very dense screens; drawing every physical pixel makes the game stutter.
 // Start at a moderate resolution and lower it further if frames take too long (see adaptQuality).
 const MOBILE = /Android|iPhone|iPad/i.test(navigator.userAgent);
-const DPR_STEPS = [Math.min(window.devicePixelRatio, MOBILE ? 1.5 : 2), 1.25, 1.0, 0.8].filter((v, i, a) => i === 0 || v < a[0]);
+const DPR_STEPS = [Math.min(window.devicePixelRatio, 1.5), 1.25, 1.0, 0.8].filter((v, i, a) => i === 0 || v < a[0]);
 let dprStep = 0;
 renderer.setPixelRatio(DPR_STEPS[0]);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -399,7 +399,8 @@ async function reveal(before) {
   const sentence = `${before.name} ${proměnil(before.g)} na ${c.acc}!`;
   showBubble('✨ ' + sentence + ' ✨');
   speak(sentence);
-  if (c.type === 'monster') { play('giggle'); setTimeout(() => saveToAlbum(c), 700); }
+  // the album picture needs a read-back of the screen, which stalls a frame: do it once the camera swoop has settled
+  if (c.type === 'monster') { play('giggle'); setTimeout(() => { if (current === c) saveToAlbum(c); }, 3600); setTimeout(() => { mistTarget = 0.35; }, 1500); }
   return sentence;
 }
 
@@ -478,10 +479,9 @@ function snapCamera() { const t = shotTarget(shot); camPos.copy(t.pos); camLook.
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let reaction = null;
-const lampLight = new THREE.PointLight(0xffd59a, 0, 3, 2);
+// One shared light for the lamp and the camera flash (every point light costs on every pixel, even when off).
+const lampLight = new THREE.PointLight(0xffd59a, 0, 4, 2);
 scene.add(lampLight);
-const flashLight = new THREE.PointLight(0xffffff, 0, 6, 2);
-scene.add(flashLight);
 
 // Tap = the thing reacts. Drag = carry it with a finger: from the stage into the box, or out of the open box.
 let drag = null;
@@ -638,7 +638,7 @@ function react(c) {
   const kind = c.type === 'item' ? c.item.sound : c.type === 'monster' ? 'monster' : null;
   if (kind === 'monster') play('giggle'); else if (kind) play(kind); else play('boing');
   if (kind === 'lampa') { lampLight.intensity = lampLight.intensity > 0 ? 0 : 4; lampLight.position.copy(centerOf(c.obj).c).add(new THREE.Vector3(0, 0.2, 0.3)); }
-  if (kind === 'fotak') { flashLight.position.copy(centerOf(c.obj).c).add(new THREE.Vector3(0, 0.3, 0.6)); flashLight.intensity = 30; setTimeout(() => flashLight.intensity = 0, 120); flash(); }
+  if (kind === 'fotak') { const i0 = lampLight.intensity, c0 = lampLight.color.getHex(); lampLight.color.set(0xffffff); lampLight.position.copy(centerOf(c.obj).c).add(new THREE.Vector3(0, 0.3, 0.6)); lampLight.intensity = 30; setTimeout(() => { lampLight.intensity = i0; lampLight.color.setHex(c0); }, 120); flash(); }
   const mixer = c.obj.userData.mixer, clips = c.obj.userData.clips;
   const special = { liska: 'Run', robot: 'Wave' }[c.item?.id];
   if (mixer && special) {
@@ -827,10 +827,10 @@ let qT = 0, qFrames = 0, qSlow = 0;
 function adaptQuality(dt) {
   if (FREEZE || document.hidden) return;
   qT += dt; qFrames++;
-  if (qT < 2) return;
+  if (qT < 1.2) return;
   const fps = qFrames / qT;
   qT = 0; qFrames = 0;
-  qSlow = fps < 45 ? qSlow + 1 : 0;
+  qSlow = fps < 50 ? qSlow + 1 : 0;
   if (qSlow >= 1 && dprStep < DPR_STEPS.length - 1) {
     dprStep++;
     renderer.setPixelRatio(DPR_STEPS[dprStep]);
@@ -1761,7 +1761,8 @@ async function placeProps() {
   await Promise.all(room.userData.props.map(async p => {
     try {
       const it = byId(p.id);
-      const g = await buildItem({ ...it, size: p.size, rot: p.rot, float: 0, anim: null });
+      // background furniture uses simplified models (a fraction of the triangles)
+      const g = await buildItem({ ...it, file: 'pokoj/' + it.file, size: p.size, rot: p.rot, float: 0, anim: null });
       g.position.copy(p.pos);
       room.add(g);
     } catch (e) { /* a missing prop is not a problem */ }
@@ -1782,10 +1783,12 @@ async function start() {
   await putOnStage({ type: 'item', item: first }, { appear: false });
   loadBar.style.width = '100%';
   for (const it of ITEMS) loadItemGltf(it).catch(() => {});
+  // celebration emoji: draw and upload their textures now, not in the middle of the big moment
+  for (const ch of ['⭐', '✨', '🎉', '💫', '💖', 'Z', '🏅']) { emojiTexCache[ch] ||= canvasTexture(ch); renderer.initTexture(emojiTexCache[ch]); }
   checkForUpdate();
 
   if (params.has('nahledy')) { window.__kk = { ITEMS, putOnStage, spinner, camera, renderer, resize }; $('nacitani').classList.add('pryc'); return; }
-  if (params.has('demo')) { window.__kk = { choose, putOnStage, current: () => current, ITEMS, newMonsterSpec, setPhase, phase: () => phase, startSpecial, album: () => album, setAlbum: a => { album = a; saveAlbum(); },
+  if (params.has('demo')) { window.__kk = { choose, putOnStage, current: () => current, ITEMS, newMonsterSpec, setPhase, phase: () => phase, startSpecial, album: () => album, setAlbum: a => { album = a; saveAlbum(); }, renderer, scene, camera, box,
     screen: which => { const v = (which === 'box' ? box.localToWorld(new THREE.Vector3(0, 0.9, 0)) : centerOf(current.obj).c).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; } }; }
 
   $('start').hidden = false;

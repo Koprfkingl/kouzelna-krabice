@@ -149,7 +149,7 @@ export function makeBox(tex) {
   const cloudTex = radialTexture('rgba(255,250,255,0.9)', 'rgba(235,215,255,0.45)', 'rgba(220,200,255,0)');
   const mist = new THREE.Group();
   const puffs = [];
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0; i < 14; i++) {
     const m = new THREE.SpriteMaterial({ map: cloudTex, transparent: true, depthWrite: false, opacity: 0 });
     const sp = new THREE.Sprite(m);
     sp.userData = { x: (Math.random() - 0.5) * IW * 0.9, z: (Math.random() - 0.5) * ID * 0.8, y: Math.random(), sp: 0.04 + Math.random() * 0.06, ph: Math.random() * 6, sc: 0.45 + Math.random() * 0.45 };
@@ -195,7 +195,7 @@ export function makeBox(tex) {
         u.y = (u.y + dt * u.sp) % 1;
         p.position.set(u.x + Math.sin(t * 0.7 + u.ph) * 0.05, B + T + 0.05 + u.y * 0.75, u.z + Math.cos(t * 0.6 + u.ph) * 0.05);
         const fade = Math.sin(u.y * Math.PI);
-        p.material.opacity = mistLevel * 0.2 * fade;
+        p.material.opacity = mistLevel * 0.28 * fade;
         p.scale.setScalar(u.sc * (0.7 + u.y * 0.6));
         p.visible = mistLevel > 0.01;
       }

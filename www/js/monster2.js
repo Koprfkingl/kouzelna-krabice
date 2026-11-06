@@ -132,7 +132,7 @@ export function makeMonster2(seed, opts = {}) {
     const long = chance(0.45);
     furLen = long ? 0.09 : 0.05;
     const fur = makeFur(geo, baseColor, furLen, long ? 12 : 10, new THREE.Vector2(long ? 34 : 48, long ? 17 : 24));
-    if (skin === 'furTips') fur.children.forEach((m, i, a) => m.material.color.copy(baseColor).lerp(accent, (i / a.length) ** 2));
+    if (skin === 'furTips') fur.children.forEach((m, i, a) => { m.material.color.copy(baseColor).lerp(accent, (i / a.length) ** 2); m.material.emissive.copy(m.material.color).multiplyScalar(0.22); });
     bodyGroup.add(fur);
   }
   monster.add(bodyGroup);

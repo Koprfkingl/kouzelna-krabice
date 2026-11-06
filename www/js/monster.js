@@ -84,7 +84,9 @@ export function makeFur(geometry, color, len, shells, density) {
   const group = new THREE.Group();
   for (let i = 1; i <= shells; i++) {
     const h = i / shells;
-    const m = new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, transparent: false, alphaTest: 0.5 });
+    // Lambert is much cheaper than PBR, and fur is matte anyway; the shells are drawn up to 12 times over the body
+    const m = new THREE.MeshLambertMaterial({ color, transparent: false, alphaTest: 0.5 });
+    m.emissive.copy(new THREE.Color(color)).multiplyScalar(0.22); // stands in for the room reflections Lambert does not get
     const u = { uH: { value: h }, uLen: { value: len }, uFur: { value: FUR_TEX }, uDen: { value: density } };
     m.onBeforeCompile = shader => {
       Object.assign(shader.uniforms, u);
@@ -106,7 +108,7 @@ export function makeFur(geometry, color, len, shells, density) {
     m.customProgramCacheKey = () => 'fur-shell';
     const mesh = new THREE.Mesh(geometry, m);
     mesh.castShadow = i === Math.round(shells * 0.5);
-    mesh.receiveShadow = true;
+    mesh.receiveShadow = false;
     group.add(mesh);
   }
   return group;
