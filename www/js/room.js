@@ -238,20 +238,36 @@ export function makeRoom(tex) {
   sill.castShadow = sill.receiveShadow = true;
   win.add(sill);
   // Curtains: wavy planes in pastel velvet
-  const curtainGeo = new THREE.PlaneGeometry(0.42, 1.9, 24, 1);
-  const cp = curtainGeo.attributes.position;
-  for (let i = 0; i < cp.count; i++) cp.setZ(i, Math.sin(cp.getX(i) * 38) * 0.035);
-  curtainGeo.computeVertexNormals();
-  const curtainMat = new THREE.MeshPhysicalMaterial({ color: 0xf2a7c3, roughness: 0.8, sheen: 1, sheenColor: 0xffd6e6, sheenRoughness: 0.5, side: THREE.DoubleSide });
+  const curtainMat = new THREE.MeshPhysicalMaterial({ color: 0xec7fae, roughness: 0.8, sheen: 1, sheenColor: 0xffd6e6, sheenRoughness: 0.5, side: THREE.DoubleSide });
+  const curtains = [];
   for (const s of [-1, 1]) {
-    const c = new THREE.Mesh(curtainGeo, curtainMat);
-    c.position.set(s * 0.8, -0.05, 0.12);
+    const geo = new THREE.PlaneGeometry(0.42, 1.9, 24, 8);
+    geo.userData.rest = Float32Array.from(geo.attributes.position.array);
+    const c = new THREE.Mesh(geo, curtainMat);
+    c.position.set(s * 0.8, -0.05, 0.3); // in front of the sill (0.21 deep), so it does not poke through
     c.castShadow = true;
+    c.userData.phase = s > 0 ? 0 : 2.1;
     win.add(c);
+    curtains.push(c);
   }
+  // A gentle breeze: folds ripple and the hem swings a little (the top stays on the rod).
+  const swayCurtains = t => {
+    for (const c of curtains) {
+      const pos = c.geometry.attributes.position, rest = c.geometry.userData.rest, ph = c.userData.phase;
+      for (let i = 0; i < pos.count; i++) {
+        const x = rest[i * 3], y = rest[i * 3 + 1];
+        const down = (0.95 - y) / 1.9; // 0 at the rod, 1 at the hem
+        pos.setX(i, x + Math.sin(t * 0.9 + ph) * 0.03 * down * down);
+        pos.setZ(i, Math.sin(x * 38 + Math.sin(t * 0.7 + ph) * 0.8 * down) * 0.035 + Math.sin(t * 1.1 + ph + y * 2) * 0.05 * down * down);
+      }
+      pos.needsUpdate = true;
+      c.geometry.computeVertexNormals();
+    }
+  };
+  swayCurtains(0);
   const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 2.1, 12), new THREE.MeshStandardMaterial({ color: 0xd9a84e, metalness: 1, roughness: 0.3 }));
   rod.rotation.z = Math.PI / 2;
-  rod.position.set(0, 0.92, 0.14);
+  rod.position.set(0, 0.92, 0.32);
   win.add(rod);
   room.add(win);
   // Daylight from the window
@@ -349,5 +365,10 @@ export function makeRoom(tex) {
     { id: 'zemC', pos: V(3.3, 0, BACK + 0.75), size: 0.75, rot: -0.2 },
     { id: 'zemD', pos: V(-2.75, 0, -0.35), size: 0.75, rot: 0.5 },
   ];
+  room.userData.swaying = []; // props that sway (the plant), added by the game
+  room.userData.update = t => {
+    swayCurtains(t);
+    for (const g of room.userData.swaying) g.rotation.z = Math.sin(t * 0.8 + g.position.x) * 0.035, g.rotation.x = Math.sin(t * 0.55) * 0.02;
+  };
   return room;
 }

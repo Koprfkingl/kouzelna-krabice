@@ -12,7 +12,8 @@ export const KINDS = [
 ];
 
 export const ITEMS = [
-  { id: 'liska', kind: 'zive', name: 'Liška', acc: 'lišku', g: 'f', file: 'Fox', size: 1.25, rot: -0.9, anim: 'Survey', sound: 'liska' },
+  { id: 'liska', kind: 'zive', name: 'Liška', acc: 'lišku', g: 'f', file: 'Fox', size: 1.25, rot: -0.9, anim: 'Survey', sound: 'liska',
+    oci: { bone: 'b_Head_05', pos: [15, 6.5, 7.6], r: 4.3, look: [0.8, 0.1, 0.6] } },
   { id: 'ryba', kind: 'zive', name: 'Ryba', acc: 'rybu', g: 'f', file: 'BarramundiFish', size: 1.15, rot: -1.2, float: 0.35, sound: 'ryba' },
   { id: 'kun', kind: 'zive', name: 'Koník', acc: 'koníka', g: 'm', file: 'Horse', size: 1.2, rot: -1.0, anim: 'horse_A_', sound: 'kun' },
   { id: 'papousek', kind: 'zive', name: 'Papoušek', acc: 'papouška', g: 'm', file: 'Parrot', size: 1.0, rot: -0.6, anim: 'parrot_A_', float: 0.3, sound: 'ptak' },

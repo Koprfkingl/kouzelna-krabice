@@ -35,6 +35,31 @@ function loadItemGltf(item) {
   return gltfCache[item.file];
 }
 
+// Big cartoon eyes on a bone of the model (the fox's own painted eyes are too small to see).
+// oci: { bone, pos: [x, y, z] of the right eye in the bone's space (left is mirrored in z), r: radius, look: [x, y, z] }
+const eyeWhite = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const eyeDark = new THREE.MeshBasicMaterial({ color: 0x1d1028 });
+eyeDark.userData.noOutline = true;
+function addEyes(model, oci) {
+  const bone = model.getObjectByName(oci.bone);
+  if (!bone) return;
+  const look = new THREE.Vector3(...(oci.look || [1, 0, 0])).normalize();
+  for (const side of [1, -1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(oci.r, 20, 14), eyeWhite);
+    eye.position.set(oci.pos[0], oci.pos[1], oci.pos[2] * side);
+    eye.scale.set(0.9, 1.15, 0.9);
+    const dir = new THREE.Vector3(look.x, look.y, look.z * side).normalize();
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(oci.r * 0.62, 16, 12), eyeDark);
+    pupil.position.copy(dir).multiplyScalar(oci.r * 0.55);
+    pupil.userData.noOutline = true;
+    const shine = new THREE.Mesh(new THREE.SphereGeometry(oci.r * 0.2, 10, 8), eyeWhite);
+    shine.position.copy(dir).multiplyScalar(oci.r * 1.05).add(new THREE.Vector3(0, oci.r * 0.3, 0));
+    shine.userData.noOutline = true;
+    eye.add(pupil, shine);
+    bone.add(eye);
+  }
+}
+
 async function buildItem(item) {
   const gltf = await loadItemGltf(item);
   const model = SkeletonUtils.clone(gltf.scene);
@@ -56,6 +81,7 @@ async function buildItem(item) {
   const center = bb.getCenter(new THREE.Vector3());
   model.position.set(-center.x * s, -bb.min.y * s + (item.float || 0), -center.z * s);
   model.scale.setScalar(s);
+  if (item.oci) addEyes(model, item.oci);
   const g = new THREE.Group();
   const inner = new THREE.Group();
   inner.rotation.y = item.rot || 0;
@@ -734,6 +760,7 @@ function loop() {
   }
   if (S.second) { const ud = S.second.obj.userData; if (ud.mixer) ud.mixer.update(dt); if (ud.monster) ud.monster.update(t, camera.position); }
   updateDecor(t, dt);
+  if (!FREEZE) room.userData.update(t);
   updateReaction(now);
   updateDrag(dt);
   updateFloaters(dt);
@@ -1226,6 +1253,7 @@ async function placeProps() {
       const g = await buildItem({ ...it, file: 'pokoj/' + it.file, size: p.size, rot: p.rot, float: 0, anim: null });
       g.position.copy(p.pos);
       room.add(g);
+      if (p.id === 'kytka') room.userData.swaying.push(g);
       if (p.spot) {
         g.updateMatrixWorld(true);
         const bb = new THREE.Box3().setFromObject(g, true);
