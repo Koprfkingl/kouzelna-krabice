@@ -44,34 +44,131 @@ function pictures(key, answer, preferSameLetter) {
   return shuffle([answer, ...chosen]);
 }
 
-let last = null;
-export function newRound(level) {
-  let r;
-  for (let tries = 0; tries < 10; tries++) {
-    if (level === 1) {
-      const a = pick(SLOVA.filter(s => !s.plain.startsWith('CH')));
-      r = { level, text: a.plain[0], answer: a, choices: pictures(s => s.plain[0], a, false), task: 'Který obrázek začíná tímhle písmenkem?', hint: `${a.plain[0]}, jako ${a.plain}` };
-    } else if (level === 2) {
-      const a = pick(SLOVA.filter(s => s.syl.length > 1));
-      r = { level, text: a.syl[0], answer: a, choices: pictures(s => s.syl[0], a, true), task: 'Který obrázek začíná touhle slabikou?', hint: `${a.syl[0]}, jako ${a.plain}` };
-    } else if (level === 3) {
-      const a = pick(SLOVA);
-      r = { level, text: a.w, answer: a, choices: pictures(s => s.plain, a, true), task: 'Přečti slovo a najdi obrázek.', hint: a.syl.join(', ') + '. ' + a.plain };
-    } else {
-      if (Math.random() < 0.6) {
-        const v = pick(VZKAZY_PECE);
-        r = { level, text: v.t, need: v.need, task: 'Přečti vzkaz od příšerky a udělej, co chce.', hint: v.t.replace(/-/g, '') };
-      } else {
-        const a = pick(SLOVA);
-        const t = pick(VZKAZY_OTAZKA).replace('{}', a.w);
-        r = { level, text: t, answer: a, choices: pictures(s => s.plain, a, true), task: 'Přečti vzkaz od příšerky.', hint: t.replace(/-/g, '') };
-      }
-    }
-    if (!last || r.text !== last.text) break;
-  }
-  last = r;
-  return r;
+// Choosing tasks. Balance matters more than drilling: most tasks are things that go well or new easy ones,
+// a hard one only now and then, and after a mistake the child climbs back up a little staircase of easier
+// related steps (letter → syllable → easier word → the word again) instead of getting the hard thing again.
+// stats[key] = { ok, miss, streak } where ok/miss count first tries.
+export const statKey = (level, k) => `${level}:${k}`;
+const uniq = a => [...new Set(a)];
+const LETTERS = uniq(SLOVA.filter(s => !s.plain.startsWith('CH')).map(s => s.plain[0]));
+const SYLLABLES = uniq(SLOVA.filter(s => s.syl.length > 1).map(s => s.syl[0]));
+const DIA = /[ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ]/;
+// how easy something looks for a beginner (bigger = easier)
+const simple = {
+  1: L => (DIA.test(L) ? 0.5 : 1),
+  2: S => (S.length === 2 && /[AEIOUY]$/.test(S) ? 1 : 0.5) * (DIA.test(S) ? 0.6 : 1),
+  3: w => 1 / (0.5 + w.syl.length * 0.5) * (w.plain.length <= 4 ? 1.3 : 1) * (DIA.test(w.plain) ? 0.75 : 1),
+  4: v => 1 / (1 + v.t.split(' ').length * 0.2),
+};
+const keyOf = { 1: x => x, 2: x => x, 3: w => w.plain, 4: v => v.t };
+const ST = (stats, level, k) => stats[statKey(level, k)] || { ok: 0, miss: 0, streak: 0 };
+function weight(stats, level, item) {
+  const s = ST(stats, level, keyOf[level](item));
+  if (s.ok + s.miss === 0) return 1.2 * simple[level](item);   // new: easy ones first
+  const missRate = s.miss / (s.ok + s.miss);
+  if (s.streak >= 3) return 0.35;                               // mastered: a confident "I know this" now and then
+  return 0.8 + 1.0 * missRate;                                  // practised, only mildly favoured when hard
 }
+const isHard = (stats, level, item) => { const s = ST(stats, level, keyOf[level](item)); return s.miss > s.ok && s.streak < 2; };
+const isComfy = (stats, level, item) => { const s = ST(stats, level, keyOf[level](item)); return s.streak >= 1 || (s.ok > s.miss && s.ok > 0); };
+function weightedPick(items, wfn) {
+  const ws = items.map(wfn), sum = ws.reduce((a, b) => a + b, 0);
+  let r = Math.random() * sum;
+  for (let i = 0; i < items.length; i++) { r -= ws[i]; if (r <= 0) return items[i]; }
+  return items[items.length - 1];
+}
+const POOL = { 1: LETTERS, 2: SYLLABLES, 3: SLOVA, 4: VZKAZY_PECE };
+
+// Builders for one task of each kind.
+function roundLetter(L, a) {
+  a ||= pick(SLOVA.filter(s => s.plain[0] === L && !s.plain.startsWith('CH')));
+  return { level: 1, key: L, text: L, answer: a, choices: pictures(s => s.plain[0], a, false), task: 'Který obrázek začíná tímhle písmenkem?', hint: `${L}, jako ${a.plain}` };
+}
+function roundSyl(S, a) {
+  a ||= pick(SLOVA.filter(s => s.syl.length > 1 && s.syl[0] === S));
+  return { level: 2, key: S, text: S, answer: a, choices: pictures(s => s.syl[0], a, true), task: 'Který obrázek začíná touhle slabikou?', hint: `${S}, jako ${a.plain}` };
+}
+function roundWord(a) {
+  return { level: 3, key: a.plain, text: a.w, answer: a, choices: pictures(s => s.plain, a, true), task: 'Přečti slovo a najdi obrázek.', hint: a.syl.join(', ') + '. ' + a.plain };
+}
+function roundCare(v) {
+  return { level: 4, key: v.t, text: v.t, need: v.need, task: 'Přečti vzkaz od příšerky a udělej, co chce.', hint: v.t.replace(/-/g, '') };
+}
+function roundQuestion(a) {
+  const t = pick(VZKAZY_OTAZKA).replace('{}', a.w);
+  return { level: 4, key: t, word: a, text: t, answer: a, choices: pictures(s => s.plain, a, true), task: 'Přečti vzkaz od příšerky.', hint: t.replace(/-/g, '') };
+}
+const BUILD = { 1: x => roundLetter(x), 2: x => roundSyl(x), 3: roundWord, 4: roundCare };
+
+let last = null;
+const ladder = [];      // the staircase after a mistake
+const recent = [];      // last results (true = first try)
+
+function pickItem(level, stats, mode) {
+  let pool = POOL[level].filter(x => !last || keyOf[level](x) !== last.key);
+  if (mode === 'comfy') {
+    const c = pool.filter(x => isComfy(stats, level, x));
+    // nothing known yet: take the easiest new things
+    pool = c.length ? c : pool.slice().sort((x, y) => simple[level](y) - simple[level](x)).slice(0, Math.max(3, Math.ceil(pool.length / 4)));
+  } else if (mode === 'notHard') {
+    const c = pool.filter(x => !isHard(stats, level, x));
+    if (c.length) pool = c;
+  }
+  return weightedPick(pool, x => weight(stats, level, x));
+}
+
+export function newRound(level, stats = {}) {
+  if (ladder.length) { const r = ladder.shift()(); r.step = true; return (last = r); }
+  // two misses lately → something they know, to get the good feeling back; otherwise hard tasks at most every third time
+  const misses = recent.slice(-3).filter(x => !x).length;
+  const lastWasHard = last && !last.step && isHardKey(stats, last);
+  const mode = misses >= 2 ? 'comfy' : (lastWasHard || Math.random() < 0.7 ? 'notHard' : 'any');
+  let r;
+  if (level === 4 && Math.random() < 0.4) r = roundQuestion(pickItem(3, stats, mode));
+  else r = BUILD[level](pickItem(level, stats, mode));
+  return (last = r);
+}
+function isHardKey(stats, r) { const s = ST(stats, r.level, r.key); return s.miss > s.ok; }
+
+// After every answered task. A mistake on a normal task builds the staircase back to it.
+export function afterResult(r, firstTry, stats) {
+  recent.push(firstTry);
+  if (recent.length > 10) recent.shift();
+  if (firstTry || r.step) return;
+  const comfy = lvl => () => { const x = pickItem(lvl, stats, 'comfy'); return BUILD[lvl](x); };
+  ladder.length = 0;
+  if (r.level === 1) {
+    ladder.push(comfy(1), () => roundLetter(r.key));
+  } else if (r.level === 2) {
+    ladder.push(() => roundLetter(r.key[0]), comfy(2), () => roundSyl(r.key));
+  } else if (r.level === 3) {
+    const w = r.answer;
+    // an easier word with the same beginning: shorter, fewer syllables
+    const easier = SLOVA.filter(s => s !== w && s.plain[0] === w.plain[0] && (s.syl.length < w.syl.length || s.plain.length < w.plain.length))
+      .sort((a, b) => a.plain.length - b.plain.length)[0];
+    if (w.syl.length > 1) ladder.push(() => roundSyl(w.syl[0], w)); else ladder.push(() => roundLetter(w.plain[0], w));
+    if (easier) ladder.push(() => roundWord(easier));
+    ladder.push(() => roundWord(w));
+  } else if (r.word) {
+    ladder.push(() => roundWord(r.word), () => roundQuestion(r.word));
+  } else {
+    const v = VZKAZY_PECE.find(x => x.t === r.key);
+    ladder.push(comfy(4), () => roundCare(v));
+  }
+}
+
+// Reading ranks by the number of stars.
+export const HODNOSTI = [
+  { od: 0, nazev: 'Začínám číst', ikona: '🐣' },
+  { od: 10, nazev: 'Písmenková průzkumnice', ikona: '🔤' },
+  { od: 30, nazev: 'Slabiková kouzelnice', ikona: '🪄' },
+  { od: 60, nazev: 'Čtenářka', ikona: '📗' },
+  { od: 100, nazev: 'Velká čtenářka', ikona: '📚' },
+  { od: 160, nazev: 'Mistryně čtení', ikona: '🏆' },
+  { od: 250, nazev: 'Knižní dračice', ikona: '🐉' },
+];
+export const hodnost = stars => HODNOSTI.filter(h => stars >= h.od).pop();
+export const dalsiHodnost = stars => HODNOSTI.find(h => h.od > stars);
 
 // Text → HTML with each syllable in its own colour (red/blue, like in a first-grade reader). Syllables can be tapped.
 export function syllableHTML(text, lower, sentence) {

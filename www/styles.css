@@ -131,3 +131,17 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 .volby .dlazdice.spatne { opacity: .35; animation: zatres .35s; }
 .volby .dlazdice.dobre { border-color: #7be38a; background: rgba(123,227,138,.3); }
 @keyframes zatres { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+
+/* Reading ranks, wardrobe, parent overview */
+.hodnost { text-align: center; font-weight: 800; font-size: 15px; margin: 0 0 6px; color: var(--zlata); }
+.hodnost small { color: var(--text); opacity: .7; font-weight: 700; }
+.dlazdice.zamceno { opacity: .45; }
+.dlazdice.zamceno .ikona { filter: grayscale(1); }
+.prehled { font-size: 15px; line-height: 1.4; padding: 0 6px; user-select: text; -webkit-user-select: text; }
+.prehled table { width: 100%; border-collapse: collapse; margin: 6px 0 14px; }
+.prehled th, .prehled td { text-align: left; padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.prehled td.c { text-align: right; font-variant-numeric: tabular-nums; }
+.prehled h3 { margin: 14px 0 4px; font-size: 17px; }
+.prehled .stitky span { display: inline-block; margin: 3px; padding: 4px 9px; border-radius: 10px; background: rgba(255,95,200,.2); font-weight: 800; }
+.prehled .stitky.umi span { background: rgba(123,227,138,.2); }
+.zalozky button.chce { border-color: #7be38a; animation: chce 1.2s ease-in-out infinite; }

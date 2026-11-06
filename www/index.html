@@ -43,8 +43,9 @@
 
   <!-- Čtení s příšerkou -->
   <div id="krok-cteni" class="krok" hidden>
+    <div id="cteni-hodnost" class="hodnost"></div>
     <nav class="zalozky" id="zalozky-cteni"></nav>
-    <div class="radek cteni-info"><span id="cteni-hvezdy">⭐ 0</span><span id="cteni-ukol"></span><button id="cteni-velikost" class="male">abc</button></div>
+    <div class="radek cteni-info"><span id="cteni-hvezdy">⭐ 0</span><span id="cteni-ukol"></span><button id="cteni-prehled" class="male" aria-label="Přehled pro rodiče">📊</button><button id="cteni-velikost" class="male">abc</button></div>
     <div id="cteni-karta" class="vzkaz"></div>
     <div class="mrizka tri volby" id="cteni-volby"></div>
     <div class="radek tlacitka">
@@ -98,6 +99,21 @@
       <button id="aktualizace-ano" class="velke">Stáhnout</button>
       <button id="aktualizace-ne" class="velke druhe">Teď ne</button>
     </div>
+  </div>
+</div>
+
+<div id="satnik" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>👗 Šatník <span id="satnik-hvezdy" class="verze"></span></h2><button id="satnik-zavrit" class="kulate">✕</button></div>
+    <p class="napoveda">Za hvězdičky ze čtení se odemykají doplňky. Klepni a příšerka si je obleče.</p>
+    <div class="mrizka" id="satnik-mrizka"></div>
+  </div>
+</div>
+
+<div id="prehled" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>📊 Jak jde čtení</h2><button id="prehled-zavrit" class="kulate">✕</button></div>
+    <div id="prehled-obsah" class="prehled"></div>
   </div>
 </div>
 

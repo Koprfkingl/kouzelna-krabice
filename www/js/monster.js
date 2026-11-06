@@ -319,6 +319,8 @@ function makeMonsterV1(seed, opts = {}) {
   const blinkAt = { t: 1 + r() * 3 };
   const phase = r() * 10;
   holder.userData.monster = {
+    // where accessories go (in the monster's own units; the group sits on the floor)
+    mount: { group: monster, top: geo.boundingBox.max.y + furLen * 0.6, faceY: eyeY, front: geo.boundingBox.max.z + furLen * 0.6, width: geo.boundingBox.max.x },
     name, seed, color: baseColor.getHex(),
     update(t, camPos) {
       const bob = Math.sin(t * 2.2 + phase);

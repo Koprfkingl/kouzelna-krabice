@@ -466,6 +466,8 @@ export function makeMonster2(seed, opts = {}) {
   const phase = r() * 10;
   const smileQ = smileFace.quaternion.clone(), sadQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI);
   holder.userData.monster = {
+    // where accessories go (in the monster's own units; the group sits on the floor)
+    mount: { group: monster, top: geo.boundingBox.max.y + furLen * 0.6, faceY: faceY, front: geo.boundingBox.max.z + furLen * 0.6, width: geo.boundingBox.max.x },
     name, seed, color: baseColor.getHex(), gen: 2, expr: {},
     update(t, camPos) {
       const ex = this.expr || {};
