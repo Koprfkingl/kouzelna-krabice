@@ -383,6 +383,7 @@ async function reveal(before) {
   });
   c.dis.uDis.value = 0;
   play('whoosh');
+  shot = 'hero'; startHero(c);
   await animate(1.1, k => {
     const e = ease.out(k);
     c.holder.position.y = 0.05 + (RISE - 0.05) * e + Math.sin(k * Math.PI) * 0.15;
@@ -390,6 +391,8 @@ async function reveal(before) {
   });
   c.raised = true;
   play('place');
+  // a little celebration around the new creation
+  { const { c: ctr, s: sz } = centerOf(c.obj); for (const ch of ['⭐', '✨', '🎉', '💫']) floatUp(ch, ctr.clone().add(new THREE.Vector3(0, sz.y * 0.3, 0)), { n: 3, spread: sz.x * 1.6, rise: 0.7, life: 2.2, size: 0.16 }); sparkles.userData.emit(ctr, 80, 1.4, 0.4); }
   const sentence = `${before.name} ${proměnil(before.g)} na ${c.acc}!`;
   showBubble('✨ ' + sentence + ' ✨');
   speak(sentence);
@@ -404,26 +407,66 @@ function flash() {
 }
 
 // ---------- Camera ----------
-// Two views: the stage in front of the box, and a closer look into the box.
+// Views: the stage in front of the box, a look into the box, care close-up, and the "hero" shot that
+// swings around a freshly made thing. Everything is framed into the free area above the button panel.
 const SHOTS = {
-  stage: { pos: new THREE.Vector3(0, 1.75, 3.7), look: new THREE.Vector3(0, 0.6, -0.2) },
-  care: { pos: new THREE.Vector3(0, 1.35, 3.3), look: new THREE.Vector3(0, -0.05, 0.55) }, // monster up high, above the care panel
-  box: { pos: new THREE.Vector3(0, 3.65, 1.75), look: new THREE.Vector3(0, 0.35, -1.0) },
+  stage: { pos: new THREE.Vector3(0, 1.5, 3.35), look: new THREE.Vector3(0, 0.55, -0.15) },
+  care: { pos: new THREE.Vector3(0, 1.15, 2.75), look: new THREE.Vector3(0, 0.45, 0.55) },
+  box: { pos: new THREE.Vector3(0, 3.4, 1.75), look: new THREE.Vector3(0, 0.45, -1.0) },
 };
 let shot = 'stage';
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
-function shotTarget(name) {
+const hero = { start: 0 };
+function heroTarget(now) {
+  const c = current;
+  if (!c) return shotTarget('box');
+  if (hero.c !== c) startHero(c, hero.start);
+  // measured once, so hops and silly reactions don't shake the camera
+  const ctr = c.holder.localToWorld(hero.local.clone());
+  const size = Math.max(hero.size * c.holder.getWorldScale(new THREE.Vector3()).x, 0.35);
+  const t = (now - hero.start) / 1000;
+  const k = ease.inOut(Math.min(1, t / 3.4));
+  // swings in from the side and from above, ends a little below eye level (looks up at the creation),
+  // then keeps slowly swaying so the picture stays alive
+  const ang = -0.95 * (1 - k) + 0.25 * Math.sin(t * 0.4) * k;
+  const fit = Math.max(1, 0.75 / camera.aspect);
+  const R = (3.9 - 1.15 * k) * size * fit;
+  const h = (1.5 - 1.62 * k) * size;
+  return { pos: ctr.clone().add(new THREE.Vector3(Math.sin(ang) * R, h, Math.cos(ang) * R)), look: ctr.clone().add(new THREE.Vector3(0, 0.08 * size, 0)), fast: true };
+}
+function startHero(c, start = performance.now()) {
+  hero.c = c; hero.start = start;
+  c.holder.updateMatrixWorld(true);
+  const { c: ctr, s } = centerOf(c.obj);
+  const sc = c.holder.getWorldScale(new THREE.Vector3()).x;
+  hero.local = c.holder.worldToLocal(ctr.clone());
+  hero.size = Math.max(s.y, s.x * 0.8) / sc;
+}
+function shotTarget(name, now = performance.now()) {
+  if (name === 'hero') return heroTarget(now);
   const s = SHOTS[name];
-  const fit = Math.min(1.9, Math.max(1, 0.62 / camera.aspect)); // narrow phone screens: step back
+  const fit = Math.min(1.9, Math.max(1, 0.8 / camera.aspect)); // narrow screens: step back
   const pos = s.pos.clone().sub(s.look).multiplyScalar(fit).add(s.look);
-  const look = s.look.clone().add(new THREE.Vector3(0, -0.22 * (fit - 1), 0));
-  return { pos, look };
+  return { pos, look: s.look.clone() };
+}
+// The panel covers the bottom of the screen; the picture is centred in the space above it.
+let panelPx = 0, viewW = 1, viewH = 1;
+function measurePanel() {
+  const el = $('panel');
+  if (el.classList.contains('schovany')) return; // keep the last size while it is hidden for a moment
+  const hpx = Math.min(el.offsetHeight * 0.88, viewH * 0.6);
+  if (Math.abs(hpx - panelPx) > 2) { panelPx = hpx; applyView(); }
+}
+function applyView() {
+  const free = Math.max(120, viewH - panelPx);
+  camera.aspect = viewW / free;
+  camera.setViewOffset(viewW, free, 0, 0, viewW, viewH);
+  camera.updateProjectionMatrix();
 }
 function resize() {
-  const w = window.innerWidth, h = window.innerHeight;
-  renderer.setSize(w, h, false);
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
+  viewW = window.innerWidth; viewH = window.innerHeight;
+  renderer.setSize(viewW, viewH, false);
+  applyView();
 }
 window.addEventListener('resize', resize);
 function snapCamera() { const t = shotTarget(shot); camPos.copy(t.pos); camLook.copy(t.look); }
@@ -513,6 +556,7 @@ canvas.addEventListener('pointermove', e => {
     busy = true;
     hidePanel(true);
     hideBubble();
+    if (shot === 'hero') shot = 'box'; // don't let the camera chase the finger
     scene.attach(current.holder);
     drag.pos = current.holder.position.clone();
     drag.scale = current.holder.scale.x;
@@ -764,8 +808,9 @@ function loop() {
   box.userData.update(t, dt, zapping);
   if (!busy) box.userData.setCharge(0.08 + 0.06 * Math.sin(t * 1.5));
   // glide the camera towards the current view
-  const target = shotTarget(shot);
-  const f = FREEZE || params.has('okamzite') ? 1 : 1 - Math.exp(-dt * 2.5);
+  measurePanel();
+  const target = shotTarget(shot, now);
+  const f = FREEZE || params.has('okamzite') ? 1 : 1 - Math.exp(-dt * (target.fast ? 4 : 2.5));
   camPos.lerp(target.pos, f); camLook.lerp(target.look, f);
   if (!window.__camLock) { camera.position.copy(camPos); camera.lookAt(camLook); }
   renderer.render(scene, camera);
@@ -974,7 +1019,7 @@ function setPhase(p) {
   $('cil-volba').hidden = true;
   $('pece').hidden = p !== 'care';
   tapHook = p === 'care' ? (k => k === 'stroke' ? pet() : tapThing(current)) : null;
-  shot = ['inside', 'closed', 'done', 'result'].includes(p) ? 'box' : p === 'care' ? 'care' : 'stage';
+  shot = p === 'result' ? 'hero' : ['inside', 'closed', 'done'].includes(p) ? 'box' : p === 'care' ? 'care' : 'stage';
   const entry = albumEntry(c);
   if (entry) { ageCare(entry); const mon = c.obj.userData.monster; if (mon) mon.expr = { ...(mon.expr || {}), sad: !!entry.pece.bebi || moodOf(entry).avg < 25 }; }
   const careBtn = entry && c.where === 'stage' ? action(`💗 Starat se o příšerku ${moodOf(entry).emoji}`, async () => setPhase('care')) : null;
