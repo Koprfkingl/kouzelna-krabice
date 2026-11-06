@@ -30,7 +30,10 @@
     <button id="btn-pokoj" class="kulate" aria-label="Můj pokojíček">🏠</button>
   </div>
   <div id="titulek">Kouzelná krabice</div>
-  <button id="btn-zvuk" class="kulate" aria-label="Zvuk">🔊</button>
+  <div class="skupina">
+    <button id="btn-den" class="kulate" aria-label="Úkoly dne">📅<span id="den-stav"></span></button>
+    <button id="btn-zvuk" class="kulate" aria-label="Zvuk">🔊</button>
+  </div>
 </header>
 <button id="btn-aktualizace" class="aktualizace" hidden></button>
 
@@ -68,6 +71,7 @@
       <div class="mrizka" id="mrizka-cil"></div>
     </div>
     <div id="pece" class="mrizka tri pece" hidden></div>
+    <div id="schovka-karta" class="vzkaz" hidden></div>
     <button id="btn-hlavni" class="velke hlavni"></button>
     <div class="radek tlacitka" id="akce-dalsi"></div>
   </div>
@@ -75,10 +79,20 @@
 
 <div id="album" class="okno" hidden>
   <div class="okno-obsah">
-    <div class="radek"><h2>Moje příšerky <span id="album-stav" class="verze"></span></h2><button id="album-zavrit" class="kulate">✕</button></div>
-    <p class="napoveda" id="album-napoveda">Klepni na příšerku a postav ji před krabici. Můžeš se o ni starat!</p>
-    <div class="radek tlacitka"><button id="album-pustit" class="male">🕊️ Pustit příšerku na svobodu</button></div>
-    <div class="mrizka" id="album-mrizka"></div>
+    <div class="radek"><h2 id="album-nadpis">Moje příšerky <span id="album-stav" class="verze"></span></h2><button id="album-zavrit" class="kulate">✕</button></div>
+    <nav class="zalozky" id="album-zalozky">
+      <button data-tab="sbirka" class="aktivni"><span class="ikona">👾</span>Příšerky</button>
+      <button data-tab="kniha"><span class="ikona">📕</span>Kniha kouzel</button>
+    </nav>
+    <div id="sbirka">
+      <p class="napoveda" id="album-napoveda">Klepni na příšerku a postav ji před krabici. Můžeš se o ni starat!</p>
+      <div class="radek tlacitka"><button id="album-pustit" class="male">🕊️ Pustit příšerku na svobodu</button></div>
+      <div class="mrizka" id="album-mrizka"></div>
+    </div>
+    <div id="kniha" hidden>
+      <p class="napoveda" id="kniha-napoveda"></p>
+      <div class="mrizka" id="kniha-mrizka"></div>
+    </div>
   </div>
 </div>
 
@@ -122,9 +136,19 @@
   </div>
 </div>
 
+<div id="den" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>📅 Úkoly dne</h2><button id="den-zavrit" class="kulate">✕</button></div>
+    <div id="den-kalendar" class="kalendar"></div>
+    <div id="den-ukoly" class="ukoly"></div>
+    <button id="den-truhla" class="truhla"></button>
+    <p id="den-odmena" class="napoveda" hidden></p>
+  </div>
+</div>
+
 <div id="ramecek" class="okno" hidden>
   <div class="okno-obsah">
-    <div class="radek"><h2>🖼️ Co dáme do rámečku?</h2><button id="ramecek-zavrit" class="kulate">✕</button></div>
+    <div class="radek"><h2 id="ramecek-nadpis">🖼️ Co dáme do rámečku?</h2><button id="ramecek-zavrit" class="kulate">✕</button></div>
     <div class="mrizka" id="ramecek-mrizka"></div>
   </div>
 </div>

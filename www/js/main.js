@@ -14,6 +14,9 @@ import { newRound, afterResult, syllableHTML, statKey, hodnost, dalsiHodnost, HO
 import { DOPLNKY, wear, byIdD } from './doplnky.js';
 import { initAudio, play, setMuted, muted } from './audio.js';
 import { hrac, known, setHrac, vokativ, a as rod } from './hrac.js';
+import { KOUZLA, kouzloById, findKouzlo, applyEffect } from './kouzla.js';
+import { OZDOBY, ozdobaById, buildOzdoba, updateOzdoba } from './ozdoby.js';
+import * as Ukoly from './ukoly.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -174,9 +177,30 @@ async function buildPhoto(photo) {
   return g;
 }
 
+// A secret creation from the Book of Spells: the base model with changed materials and maybe a smaller model on it.
+async function buildCombo(k) {
+  const base = byId(k.base);
+  const g = await buildItem({ ...base, size: k.size || base.size, anim: base.anim });
+  applyEffect(g, k.effect);
+  if (k.attach) {
+    const it = byId(k.attach.id);
+    const a = await buildItem({ ...it, size: k.attach.size, float: 0 });
+    g.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(g, true);
+    a.position.set(k.attach.at[0], bb.max.y * k.attach.at[1], k.attach.at[2]);
+    if (k.attach.float) a.userData.bob = true;
+    g.add(a);
+    if (a.userData.mixer) g.userData.mixer2 = a.userData.mixer;
+  }
+  if (k.effect === 'svetlo') { const l = new THREE.PointLight(0xffd36e, 1.5, 1.6, 2); l.position.y = 0.4; g.add(l); }
+  return g;
+}
 function buildMonster(m) { return makeMonster(m.seed, { tint: m.tint, size: 0.82, gen: m.gen || 1 }); }
 
+const low1 = t => t[0].toLowerCase() + t.slice(1);
 function describe(src) {
+  if (src.type === 'combo') { const k = kouzloById(src.id); return { living: false, name: k.name, acc: k.acc, g: k.g }; }
+  if (src.type === 'ozdoba') { const o = ozdobaById(src.id); return { living: false, name: o.nazev, acc: o.nazev.toLowerCase(), g: 'f' }; }
   if (src.type === 'item') return { living: src.item.kind === 'zive', name: src.item.name, acc: src.item.acc, g: src.item.g };
   if (src.type === 'photo') {
     const k = src.photo.kind;
@@ -191,7 +215,8 @@ function describe(src) {
 // A built thing: holder (moved between stage and box) > bounce (hops when tapped) > obj > model.
 async function buildFor(src, { decor: forRoom = false } = {}) {
   if (src.type === 'monster' && !forRoom) takeFromRoom(src.monster.seed);
-  const obj = src.type === 'item' ? await buildItem(src.item) : src.type === 'photo' ? await buildPhoto(src.photo) : buildMonster(src.monster);
+  const obj = src.type === 'item' ? await buildItem(src.item) : src.type === 'photo' ? await buildPhoto(src.photo)
+    : src.type === 'combo' ? await buildCombo(kouzloById(src.id)) : src.type === 'ozdoba' ? buildOzdoba(src.id) : buildMonster(src.monster);
   if (src.type === 'monster') { const e = album.find(a => a.seed === src.monster.seed); if (e && e.doplnky && e.doplnky.length) wear(obj, e.doplnky); }
   const dis = prepareDissolve(obj);
   dis.uDis.value = 1;
@@ -242,6 +267,7 @@ let busy = false;
 let zapping = false;
 
 async function removeCurrent(fast = false) {
+  dropSecond();
   if (!current) return;
   const c = current;
   current = null;
@@ -338,6 +364,7 @@ async function zap(targetSrc) {
   const next = await nextPromise;
   before.holder.removeFromParent();
   disposeObj(before.holder);
+  if (second) { second.holder.removeFromParent(); disposeObj(second.holder); second = null; }
   current = next;
   next.where = 'box';
   next.dis.uDis.value = 1; // stays invisible until the lid opens
@@ -399,9 +426,16 @@ async function reveal(before) {
   play('place');
   // a little celebration around the new creation
   { const { c: ctr, s: sz } = centerOf(c.obj); for (const ch of ['⭐', '✨', '🎉', '💫']) floatUp(ch, ctr.clone().add(new THREE.Vector3(0, sz.y * 0.3, 0)), { n: 3, spread: sz.x * 1.6, rise: 0.7, life: 2.2, size: 0.16 }); sparkles.userData.emit(ctr, 80, 1.4, 0.4); }
-  const sentence = `${before.name} ${proměnil(before.g)} na ${c.acc}!`;
+  let sentence = `${before.name} ${before.g === 'pm' ? 'se proměnili' : proměnil(before.g)} na ${c.acc}!`;
+  if (before.kouzlo && before.kouzlo !== 'mix') {
+    const k = before.kouzlo, isNew = !kniha[k.id];
+    sentence = `${isNew ? 'Tajné kouzlo! ' : ''}${before.name} = ${c.name}!${isNew ? ' Zapisuju ho do Knihy kouzel.' : ''}`;
+    setTimeout(async () => { if (current !== c) return; const img = await snapshot(c.obj); if (!kniha[k.id] || isNew) { kniha[k.id] = img; store.set('kk-kniha', kniha); } }, 3600);
+    if (isNew) { kniha[k.id] = kniha[k.id] || ''; store.set('kk-kniha', kniha); for (const ch of ['📕', '✨', '🌟']) floatUp(ch, centerOf(c.obj).c, { n: 3, spread: 1, rise: 1, life: 2.6 }); }
+  } else if (before.kouzlo === 'mix') sentence = `${before.name} se smíchal${before.g === 'pm' ? 'i' : 'y'} a vznikla ${low1(c.name)}! Tahle dvojice v Knize kouzel není, zkus jinou.`;
   showBubble('✨ ' + sentence + ' ✨');
-  speak(sentence);
+  speak(sentence.replace(/=/g, 'je'));
+  dayEvent('promena', { type: c.type, item: c.item?.id, dvojice: !!before.dvojice });
   // the album picture needs a read-back of the screen, which stalls a frame: do it once the camera swoop has settled
   if (c.type === 'monster') { play('giggle'); setTimeout(() => { if (current === c) saveToAlbum(c); }, 3600); setTimeout(() => { mistTarget = 0.35; }, 1500); }
   return sentence;
@@ -538,7 +572,7 @@ canvas.addEventListener('lostpointercapture', endLidDrag);
 
 canvas.addEventListener('pointerdown', e => {
   initAudio();
-  if (phase === 'pokoj') { if (!busy) roomPointerDown(e); return; }
+  if (phase === 'pokoj' || phase === 'schovka') { if (!busy) roomPointerDown(e); return; }
   if (busy || !current || drag || lidDrag) return;
   setPointer(e);
   if (!raycaster.intersectObject(current.holder, true).length) {
@@ -565,6 +599,7 @@ canvas.addEventListener('pointermove', e => {
     hidePanel(true);
     hideBubble();
     if (shot === 'hero') shot = 'box'; // don't let the camera chase the finger
+    if (drag.origin === 'box') dropSecond();
     scene.attach(current.holder);
     if (drag.origin === 'stage' && srcOf(current)) showMarkers(true);
     drag.pos = current.holder.position.clone();
@@ -808,9 +843,12 @@ function loop() {
   if (current) {
     const ud = current.obj.userData;
     if (ud.mixer) ud.mixer.update(dt);
+    if (ud.mixer2) ud.mixer2.update(dt);
     if (ud.monster) { ud.monster.update(t, camera.position); if (ud.monster.doplnkyUpdate) ud.monster.doplnkyUpdate(t); }
     if (ud.float && !reaction) current.obj.position.y = Math.sin(t * 1.7) * 0.04;
+    if (ud.ozdoba) updateOzdoba(current.obj, t);
   }
+  if (second) { const ud = second.obj.userData; if (ud.mixer) ud.mixer.update(dt); if (ud.monster) ud.monster.update(t, camera.position); }
   updateDecor(t, dt);
   updateReaction(now);
   updateDrag(dt);
@@ -1017,7 +1055,18 @@ const LID_STEPS = {
   done: async () => { await reveal(lastBefore); setPhase('result'); },
   result: async () => { await sinkIntoBox(); mistTarget = 0; await setLid(false); setPhase('closed'); },
 };
-const fireLaser = async () => { const r = await zap(pickTarget()); lastBefore = r.before; setPhase('done'); };
+const fireLaser = async () => {
+  if (second) {
+    const a = current, b = second;
+    const k = a.type === 'item' && b.type === 'item' ? findKouzlo(a.item.id, b.item.id) : null;
+    const masc = x => x.g === 'm' && (x.living || x.type === 'monster' || x.item?.id === 'robot');
+    const r = await zap(k ? { type: 'combo', id: k.id } : { type: 'monster', monster: newMonsterSpec() });
+    lastBefore = { name: `${a.name} a ${low1(b.name)}`, g: masc(a) || masc(b) ? 'pm' : 'p', kouzlo: k || 'mix', dvojice: true };
+    setPhase('done');
+    return;
+  }
+  const r = await zap(pickTarget()); lastBefore = r.before; setPhase('done');
+};
 // Each step of the magic is one button press.
 // phase: stage → stageOpen → inside → closed → (laser) → done → (open) → result
 let phase = 'stage';
@@ -1032,46 +1081,66 @@ function setPhase(p) {
   $('cil-volba').hidden = true;
   $('pece').hidden = p !== 'care';
   tapHook = p === 'care' ? (k => k === 'stroke' ? pet() : tapThing(current)) : null;
-  shot = p === 'pokoj' ? 'pokoj' : p === 'result' ? 'hero' : ['inside', 'closed', 'done'].includes(p) ? 'box' : p === 'care' ? 'care' : 'stage';
+  $('schovka-karta').hidden = !(p === 'schovka' && schovka && !schovka.found);
+  shot = p === 'pokoj' || p === 'schovka' ? 'pokoj' : p === 'result' ? 'hero' : ['inside', 'closed', 'done'].includes(p) ? 'box' : p === 'care' ? 'care' : 'stage';
   const entry = albumEntry(c);
   if (entry) { ageCare(entry); const mon = c.obj.userData.monster; if (mon) mon.expr = { ...(mon.expr || {}), sad: !!entry.pece.bebi || moodOf(entry).avg < 25 }; }
   const readBtn = entry && c.where === 'stage' ? action('🔤 Čtení s příšerkou', async () => openReading()) : null;
   const careBtn = entry && c.where === 'stage' ? action(`💗 Starat se o příšerku ${moodOf(entry).emoji}`, async () => setPhase('care')) : null;
   const other = action('🔄 Vybrat něco jiného', () => showPicker());
   const toRoom = c && c.where === 'stage' && srcOf(c) ? action('🏠 Dát do pokojíčku', async () => openRoom()) : null;
-  if (p === 'pokoj') {
+  const hideBtn = entry && c.where === 'stage' ? action('🙈 Schovávaná', async () => startSchovka()) : null;
+  if (p === 'schovka') {
+    const s = schovka;
+    if (s.found) {
+      title = `Hurá, ${rod('našla', 'našel')} jsi ji!`;
+      tip = 'Má se schovat znovu?';
+      main = action('🙈 Schovej se znovu', async () => startSchovka());
+      extra = [action('⬅️ Zpět ke krabici', async () => endSchovka())];
+    } else {
+      title = `🙈 Kde je ${c.monster.name}?`;
+      tip = 'Přečti vzkaz a klepni na místo, kde se schovala. Pokoj posouvej prstem.';
+      renderSchovkaCard();
+      main = action('🔊 Přečti mi to', async () => { readSchovka(); setPhase('schovka'); });
+      extra = [action('⬅️ Konec schovávané', async () => endSchovka())];
+    }
+  } else if (p === 'pokoj') {
     title = '🏠 Můj pokojíček';
     const can = c && c.where === 'stage' && srcOf(c);
+    const ozd = unplacedOzdoby().length;
     tip = can ? `Klepni na ✨ a ${c.name} tam postavíš. Na rámeček dej fotku. Posouvej prstem do stran.`
+      : ozd ? 'Klepni na ✨ a postav tam ozdobu z dárku. Klepnutím na věc v pokoji ji vrátíš před krabici.'
       : 'Klepni na věc v pokoji a postavíš ji před krabici. Na rámeček dej fotku, na poličce jsou trofeje.';
     main = action('⬅️ Zpět ke krabici', async () => { if (current) setPhase(current.where === 'box' ? (lidOpen ? 'inside' : 'closed') : 'stage'); else showPicker(); });
-    showMarkers(!!can);
+    showMarkers(!!can || ozd > 0);
   } else if (p === 'stage') {
     title = `${c.name} čeká před krabicí`;
     tip = 'Zatáhni víko prstem nahoru, nebo to rovnou přetáhni do krabice.';
     main = action('📦 Otevřít krabici', LID_STEPS.stage);
-    extra = careBtn ? [careBtn, readBtn, toRoom, other] : [toRoom, other].filter(Boolean);
+    extra = careBtn ? [careBtn, readBtn, hideBtn, other] : [toRoom, other].filter(Boolean);
   } else if (p === 'care') {
     const m = moodOf(entry), want = neediest(entry.pece);
     title = `${c.monster.name} ${m.text} ${m.emoji}`;
     tip = want ? `${want.want} Klepni na ${want.icon}. Můžeš ji i hladit prstem.` : 'Je spokojená! Můžeš ji hladit prstem.';
     renderCare();
     main = action('⬅️ Hotovo', async () => setPhase('stage'));
-    extra = [readBtn, action('👗 Šatník', async () => { openWardrobe(); setPhase('care'); })];
+    extra = [readBtn, hideBtn, action('👗 Šatník', async () => { openWardrobe(); setPhase('care'); })];
   } else if (p === 'stageOpen') {
     title = 'Krabice je otevřená!';
     tip = 'Přetáhni to prstem do krabice.';
     main = action('⬆️ Dát do krabice', async () => { await moveCurrent('box'); setPhase('inside'); });
     extra = [other];
   } else if (p === 'inside') {
-    title = `${c.name} je v krabici`;
-    tip = 'Stáhni víko prstem dolů. Nebo to vytáhni ven.';
+    title = second ? `${c.name} a ${low1(second.name)} jsou v krabici` : `${c.name} je v krabici`;
+    tip = second ? 'Zavři víko a vystřel laser. Co z nich vznikne?' : 'Stáhni víko prstem dolů. Nebo přidej druhou věc a zkus tajné kouzlo!';
     main = action('🔒 Zavřít víko', LID_STEPS.inside);
-    extra = [action('⬇️ Vyndat ven', async () => { await moveCurrent('stage'); await setLid(false); setPhase('stage'); })];
+    extra = [action('⬇️ Vyndat ven', async () => { dropSecond(); await moveCurrent('stage'); await setLid(false); setPhase('stage'); }),
+      !second && ['item', 'monster', 'combo'].includes(c.type) ? action('➕ Přidat druhou věc', async () => showPicker('druha')) : null];
   } else if (p === 'closed') {
-    title = c.living ? `${c.name} je v krabici` : 'Na co to proměníme?';
-    tip = c.living ? 'Přetáhni blesk na krabici!' : 'Přetáhni obrázek nebo blesk na krabici!';
-    if (c.living) $('zive-info').hidden = false;
+    title = second ? 'Co z nich vznikne?' : c.living ? `${c.name} je v krabici` : 'Na co to proměníme?';
+    tip = second ? `${c.name} a ${low1(second.name)} se smíchají. Přetáhni blesk na krabici!` : c.living ? 'Přetáhni blesk na krabici!' : 'Přetáhni obrázek nebo blesk na krabici!';
+    if (second) { /* the pair decides */ }
+    else if (c.living) $('zive-info').hidden = false;
     else { $('cil-volba').hidden = false; renderTargets(); }
     main = action('⚡ LASER! ⚡', fireLaser, 'laser');
     extra = [action('📦 Otevřít', LID_STEPS.closed)];
@@ -1170,17 +1239,23 @@ function draggableToBox(el, getDrop) {
 draggableToBox($('btn-hlavni'), () => mbDrop);
 
 // The picker leaves the scene as it is, so the child can change their mind and go back.
-let pickerBack = null;
-async function showPicker() {
+let pickerBack = null, pickerMode = null;
+async function showPicker(mode = null) {
+  pickerMode = mode;
+  $('vyber-nadpis').textContent = mode === 'druha' ? 'Co přidáme do krabice?' : 'Co dáme před krabici?';
+  $('vyber-nadpis').classList.toggle('druha', mode === 'druha');
   pickerBack = current ? phase : null;
   $('vyber-zpet').hidden = !pickerBack;
   if (shot === 'pokoj' || shot === 'care') shot = 'stage';
   showStep('vyber');
 }
-$('vyber-zpet').addEventListener('click', () => { if (pickerBack && current) setPhase(pickerBack); pickerBack = null; });
+$('vyber-zpet').addEventListener('click', () => { pickerMode = null; if (pickerBack && current) setPhase(pickerBack); pickerBack = null; });
 
 async function choose(src) {
   if (busy) return;
+  if (pickerMode === 'druha' && current && current.where === 'box') { pickerMode = null; return addSecond(src); }
+  pickerMode = null;
+  schovka = null;
   busy = true;
   hidePanel(true);
   try {
@@ -1221,7 +1296,7 @@ $('btn-zvuk').addEventListener('click', () => {
 });
 if (store.get('kk-ticho', false)) { setMuted(true); $('btn-zvuk').textContent = '🔇'; }
 
-$('btn-album').addEventListener('click', () => { initAudio(); play('tap'); renderAlbum(); $('album').hidden = false; });
+$('btn-album').addEventListener('click', () => { initAudio(); play('tap'); renderAlbumTabs(); $('album').hidden = false; });
 $('album-zavrit').addEventListener('click', () => { $('album').hidden = true; });
 $('album').addEventListener('click', e => { if (e.target.id === 'album') $('album').hidden = true; });
 let releasing = false;
@@ -1476,6 +1551,7 @@ async function doCare(need) {
     a.pece[need.id] = need.id === 'zdravi' ? 100 : Math.min(100, a.pece[need.id] + 45);
     saveAlbum();
     showBubble(say); speak(say);
+    dayEvent('pece', { need: need.id });
   } finally { careBusy = false; busy = false; }
   if (phase === 'care') setPhase('care');
 }
@@ -1605,6 +1681,18 @@ function nextRound() {
     grid.querySelectorAll('.jmeno').forEach(j => j.remove());
   }
 }
+// One star for reading; returns news about a new rank or reward.
+function giveStar(pos) {
+  const before = hodnost(stars);
+  stars++;
+  store.set('kk-hvezdy', stars);
+  floatUp('⭐', pos.clone().add(new THREE.Vector3(0, 0.3, 0.2)), { n: 3, spread: 0.5, size: 0.2 });
+  const after = hodnost(stars), unlocked = DOPLNKY.find(d => d.hvezdy === stars);
+  let news = null;
+  if (after.nazev !== before.nazev) news = `Nová hodnost: ${after.ikona} ${after.nazev}! Na poličce v pokojíčku máš nový pohár.`;
+  if (unlocked) news = (news ? news + ' ' : '') + `Nová odměna: ${unlocked.ikona} ${unlocked.nazev}! Najdeš ji v šatníku.`;
+  return news;
+}
 async function answer(ok, el, need) {
   if (roundDone || busy) return;
   const c = current;
@@ -1622,14 +1710,9 @@ async function answer(ok, el, need) {
   recordResult(round, star);
   afterResult(round, star, readStats);
   let news = null;
+  dayEvent('cteni');
   if (star) {
-    const before = hodnost(stars);
-    stars++;
-    store.set('kk-hvezdy', stars);
-    floatUp('⭐', centerOf(c.obj).c.add(new THREE.Vector3(0, 0.3, 0.2)), { n: 3, spread: 0.5, size: 0.2 });
-    const after = hodnost(stars), unlocked = DOPLNKY.find(d => d.hvezdy === stars);
-    if (after !== before) news = `Nová hodnost: ${after.ikona} ${after.nazev}!`;
-    if (unlocked) news = (news ? news + ' ' : '') + `Nová odměna: ${unlocked.ikona} ${unlocked.nazev}! Najdeš ji v šatníku.`;
+    news = giveStar(centerOf(c.obj).c);
     renderRank();
   }
   if (news) {
@@ -1792,6 +1875,7 @@ function srcOf(c) {
   if (!c) return null;
   if (c.type === 'item') return { type: 'item', id: c.item.id };
   if (c.type === 'monster') return { type: 'monster', monster: { seed: c.monster.seed, name: c.monster.name, tint: c.monster.tint ?? null, gen: c.monster.gen || 1 } };
+  if (c.type === 'combo' || c.type === 'ozdoba') return { type: c.type, id: c.id };
   return null; // photos go into frames instead
 }
 function savePokoj() {
@@ -1840,8 +1924,10 @@ function updateDecor(t, dt) {
   for (const c of Object.values(decor)) {
     const ud = c.obj.userData;
     if (ud.mixer) ud.mixer.update(dt);
+    if (ud.mixer2) ud.mixer2.update(dt);
     if (ud.monster) { ud.monster.update(t, camera.position); if (ud.monster.doplnkyUpdate) ud.monster.doplnkyUpdate(t); }
     if (ud.float) c.obj.position.y = Math.sin(t * 1.7 + c.maxDim) * 0.04;
+    if (ud.ozdoba) updateOzdoba(c.obj, t);
   }
   if (markers.visible) for (const m of markers.children) { const k = 1 + 0.18 * Math.sin(t * 4 + m.position.x * 3); m.scale.setScalar(m.userData.base * k); }
 }
@@ -1886,6 +1972,7 @@ async function placeInRoom(spot) {
   sparkles.userData.emit(spot.pos.clone().add(new THREE.Vector3(0, 0.2, 0)), 16, 0.9, 0.3);
   if (!savePokoj()) showBubble('Pokojíček se nepodařilo uložit, v telefonu je málo místa.');
   speak(`${c.name} je teď v pokojíčku.`);
+  dayEvent('pokoj');
 }
 
 // Sparkles that mark free spots (and frames) while there is something to put there.
@@ -1949,12 +2036,13 @@ canvas.addEventListener('pointermove', e => {
 const roomUp = e => {
   if (!roomPtr || e.pointerId !== roomPtr.id) return;
   const p = roomPtr; roomPtr = null;
-  if (!p.moved && phase === 'pokoj' && !busy) roomTap(e);
+  if (!p.moved && (phase === 'pokoj' || phase === 'schovka') && !busy) roomTap(e);
 };
 canvas.addEventListener('pointerup', roomUp);
 canvas.addEventListener('pointercancel', e => { if (roomPtr && e.pointerId === roomPtr.id) roomPtr = null; });
 
 function roomTap(e) {
+  if (phase === 'schovka') { schovkaTap(e); return; }
   setPointer(e);
   const targets = [...(markers.visible ? markers.children : []), ...Object.values(decor).map(c => c.holder), ...room.userData.frames.map(f => f.group), trophies];
   const hits = raycaster.intersectObjects(targets, true);
@@ -1964,9 +2052,13 @@ function roomTap(e) {
     if (!o) continue;
     const info = o.userData.pokoj;
     initAudio();
-    if (info.kind === 'spot') { const spot = spotById(info.id); run(async () => { await placeInRoom(spot); }).then(() => setPhase('pokoj')); }
-    else if (info.kind === 'deco') {
+    if (info.kind === 'spot') {
+      const spot = spotById(info.id);
+      if (current && current.where === 'stage' && srcOf(current)) run(async () => { await placeInRoom(spot); }).then(() => setPhase('pokoj'));
+      else openOzdobaPicker(spot);
+    } else if (info.kind === 'deco') {
       const d = decor[info.id];
+      if (d.type === 'ozdoba') { putAwayOzdoba(d); return; }
       if (current && current.where === 'box') { showBubble('Krabice je zabraná. Nejdřív z ní vyndej, co je uvnitř.'); play('boing'); return; }
       run(async () => {
         if (current && srcOf(current)) await placeInRoom(spotById(info.id));
@@ -2006,6 +2098,7 @@ function shrinkImage(url, max = 256) {
 }
 function openFramePicker(f) {
   play('tap');
+  $('ramecek-nadpis').textContent = '🖼️ Co dáme do rámečku?';
   const grid = $('ramecek-mrizka');
   grid.innerHTML = '';
   const pickIt = async url => {
@@ -2091,11 +2184,301 @@ function buildTrophies(announce = false) {
   savePokoj();
 }
 $('btn-pokoj').addEventListener('click', () => {
+  if (phase === 'schovka') return;
   if (busy || $('panel').classList.contains('schovany') && phase !== 'pokoj') return;
   initAudio(); play('tap');
   if (phase === 'pokoj') { $('btn-hlavni').click(); return; }
   openRoom();
 });
+
+// ---------- Two things in the box: the Book of Spells ----------
+let second = null;                        // a second thing in the box, mixed with the first by the laser
+let kniha = store.get('kk-kniha', {});    // discovered secret spells: id → picture
+async function addSecond(src) {
+  busy = true;
+  hidePanel(true);
+  try {
+    const s = await buildFor(src);
+    s.where = 'box';
+    boxSlot.add(s.holder);
+    s.holder.position.set(0.22, 0.6, 0.02);
+    s.holder.scale.setScalar(s.fit * 0.72);
+    second = s;
+    const c = current, p0 = c.holder.position.clone(), s0 = c.holder.scale.x, to = new THREE.Vector3(-0.2, 0, 0);
+    play('whoosh');
+    await animate(0.8, k => {
+      const e = ease.inOut(k);
+      c.holder.position.lerpVectors(p0, to, e);
+      c.holder.scale.setScalar(s0 + (c.fit * 0.72 - s0) * e);
+      s.dis.uDis.value = 1 - e;
+      s.holder.position.y = 0.6 * (1 - e);
+    });
+    s.dis.uDis.value = 0;
+    play('place');
+    sparkles.userData.emit(s.holder.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.3, 0)), 30, 1, 0.3);
+  } finally { busy = false; }
+  setPhase('inside');
+}
+function dropSecond() {
+  if (!second) return;
+  const s = second;
+  second = null;
+  play('poof');
+  animate(0.4, k => { s.dis.uDis.value = k; }).then(() => { s.holder.removeFromParent(); disposeObj(s.holder); });
+  if (current && current.where === 'box') { current.holder.position.set(0, 0, 0); current.holder.scale.setScalar(current.fit); }
+}
+
+let albumTab = 'sbirka';
+$('album-zalozky').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { play('tap'); albumTab = b.dataset.tab; renderAlbumTabs(); }));
+function renderAlbumTabs() {
+  $('album-zalozky').querySelectorAll('button').forEach(b => b.classList.toggle('aktivni', b.dataset.tab === albumTab));
+  $('sbirka').hidden = albumTab !== 'sbirka';
+  $('kniha').hidden = albumTab !== 'kniha';
+  $('album-nadpis').firstChild.textContent = albumTab === 'kniha' ? 'Kniha kouzel ' : 'Moje příšerky ';
+  $('album-stav').hidden = albumTab === 'kniha';
+  if (albumTab === 'kniha') renderKniha(); else renderAlbum();
+}
+function renderKniha() {
+  const grid = $('kniha-mrizka');
+  grid.innerHTML = '';
+  const found = KOUZLA.filter(k => k.id in kniha).length;
+  $('kniha-napoveda').textContent = `Objeveno ${found} z ${KOUZLA.length} tajných kouzel. Dej do krabice dvě věci najednou (tlačítko ➕ Přidat druhou věc) a vystřel laser!`;
+  for (const k of KOUZLA) {
+    if (k.id in kniha) grid.append(tile({ label: k.name, img: kniha[k.id] || null, icon: k.icon, onClick: () => { $('album').hidden = true; choose({ type: 'combo', id: k.id }); } }));
+    else grid.append(tile({ label: '???', icon: `${ICONS[k.a] || '❓'}+❓`, cls: 'tajne', onClick: () => {
+      play('tap');
+      const t = `Zkus dát do krabice ${byId(k.a).acc} a ještě něco.`;
+      showBubble('📕 ' + t); speak(t);
+    } }));
+  }
+}
+
+// ---------- Room decorations from the daily chest ----------
+pokoj.ozdoby ||= [];
+function unplacedOzdoby() {
+  const left = [...pokoj.ozdoby];
+  for (const c of Object.values(decor)) if (c.type === 'ozdoba') { const i = left.indexOf(c.id); if (i >= 0) left.splice(i, 1); }
+  return [...new Set(left)];
+}
+async function placeOzdoba(spot, id) {
+  busy = true;
+  try {
+    const c = await buildFor({ type: 'ozdoba', id }, { decor: true });
+    settleInSpot(c, spot);
+    play('place');
+    await animate(0.6, k => { c.dis.uDis.value = 1 - k; });
+    c.dis.uDis.value = 0;
+    sparkles.userData.emit(spot.pos.clone().add(new THREE.Vector3(0, 0.2, 0)), 20, 0.9, 0.3);
+    savePokoj();
+    dayEvent('pokoj');
+  } finally { busy = false; }
+  setPhase('pokoj');
+}
+function openOzdobaPicker(spot) {
+  const list = unplacedOzdoby();
+  if (!list.length) {
+    const t = Ukoly.allDone(den) && den.opened ? 'Tady je volné místo. Vrať se ke krabici a vyber, co sem dáš.' : 'Tady je volné místo. Ozdoby do pokoje dostaneš za úkoly dne v 📅.';
+    showBubble(t); speak(t); return;
+  }
+  play('tap');
+  $('ramecek-nadpis').textContent = '🎁 Co sem dáme?';
+  const grid = $('ramecek-mrizka');
+  grid.innerHTML = '';
+  for (const id of list) { const o = ozdobaById(id); grid.append(tile({ label: o.nazev, icon: o.ikona, onClick: () => { $('ramecek').hidden = true; placeOzdoba(spot, id); } })); }
+  $('ramecek').hidden = false;
+}
+async function putAwayOzdoba(c) {
+  busy = true;
+  try {
+    delete decor[c.spot];
+    play('poof');
+    await animate(0.4, k => { c.dis.uDis.value = k; });
+    c.holder.removeFromParent(); disposeObj(c.holder);
+    savePokoj();
+    const t = `${c.name} je uklizen${c.g === 'm' ? 'ý' : c.g === 'n' ? 'é' : 'á'}. Klepni na ✨ a dej ji jinam.`;
+    showBubble(t);
+  } finally { busy = false; }
+  setPhase('pokoj');
+}
+
+// ---------- Hide and seek: the monster hides in the room and leaves a note ----------
+const BED_ZONE = { c: [-3.7, 0.5, -1.6], r: 0.95 };
+const ZONES = {
+  postel: BED_ZONE,
+  kytka: { c: [-2.4, 0.55, -2.15], r: 0.5 },
+  okno: { c: [-1.45, 1.8, -2.55], r: 0.75 },
+  krabice: { c: [0, 0.55, -1.05], r: 0.85 },
+  taburet: { c: [2.15, 0.2, -1.2], r: 0.45 },
+  pohary: { c: [3.3, 1.5, -2.45], r: 0.75 },
+  knizky: { c: [1.4, 1.85, -2.47], r: 0.7 },
+};
+const SCHOVKY = [
+  { id: 'pod-postylkou', zone: 'postel', text: 'JSEM POD PO-STÝL-KOU.', pos: [-3.0, 0, -1.3], size: 0.3 },
+  { id: 'v-postylce', zone: 'postel', text: 'JSEM V PO-STÝL-CE.', pos: [-3.7, 0.56, -1.0], size: 0.45, conflict: 'perina' },
+  { id: 'za-kytkou', zone: 'kytka', text: 'JSEM ZA KYT-KOU.', pos: [-2.4, 0, -2.45], size: 0.42 },
+  { id: 'na-okne', zone: 'okno', text: 'JSEM NA OK-NĚ.', pos: [-1.45, 1.13, -2.45], size: 0.36 },
+  { id: 'za-krabici', zone: 'krabice', text: 'JSEM ZA KRA-BI-CÍ.', pos: [0.45, 0, -1.95], size: 0.42 },
+  { id: 'na-taburetu', zone: 'taburet', text: 'JSEM NA TA-BU-RE-TU.', size: 0.45, conflict: 'taburet', spot: 'taburet' },
+  { id: 'u-poharu', zone: 'pohary', text: 'JSEM U PO-HÁ-RŮ.', pos: [3.0, 0, -2.25], size: 0.45, conflict: 'zemC' },
+  { id: 'pod-knizkami', zone: 'knizky', text: 'JSEM POD KNÍŽ-KA-MI.', pos: [1.4, 0, -2.3], size: 0.45 },
+];
+let schovka = null;
+async function startSchovka() {
+  const c = current;
+  if (!c || c.type !== 'monster') return;
+  const free = SCHOVKY.filter(p => !(p.conflict && decor[p.conflict]) && p.id !== schovka?.place.id && (!p.spot || spotById(p.spot)));
+  const place = free[Math.floor(Math.random() * free.length)];
+  schovka = { place, c, misses: 0, help: false, found: false };
+  hideBubble();
+  play('giggle');
+  speak('Zavři oči, já se schovám! Raz, dva, tři!');
+  await animate(0.6, k => { c.dis.uDis.value = k; });
+  room.add(c.holder);
+  const pos = place.spot ? spotById(place.spot).pos : new THREE.Vector3(...place.pos);
+  c.holder.position.copy(pos);
+  c.holder.rotation.set(0, 0, 0);
+  c.holder.scale.setScalar(Math.min(1, place.size / c.maxDim));
+  c.where = 'schovka';
+  roomPan = 0;
+  await wait(0.6);
+  setPhase('schovka');
+  speak('Přečti vzkaz a najdi mě.');
+}
+function renderSchovkaCard() {
+  const k = $('schovka-karta');
+  k.innerHTML = syllableHTML(schovka.place.text, readLower, true) + `<span class="podpis">${schovka.c.monster.name}</span>`;
+  k.querySelectorAll('.slabika').forEach(el => el.addEventListener('click', () => { initAudio(); flashSyl(el); speak(el.dataset.s.toLowerCase()); }));
+}
+function readSchovka() {
+  schovka.help = true;
+  const els = [...$('schovka-karta').querySelectorAll('.slabika')];
+  els.forEach((el, i) => setTimeout(() => flashSyl(el), i * 650));
+  speak(schovka.place.text.replace(/-/g, '').toLowerCase());
+}
+function schovkaTap(e) {
+  if (!schovka || schovka.found || busy) return;
+  let best = null, bd = Infinity;
+  for (const [id, z] of Object.entries(ZONES)) {
+    const v = new THREE.Vector3(...z.c).project(camera);
+    if (v.z > 1) continue;
+    const sx = (v.x + 1) / 2 * innerWidth, sy = (1 - v.y) / 2 * innerHeight;
+    const v2 = new THREE.Vector3(z.c[0] + z.r, z.c[1], z.c[2]).project(camera);
+    const rad = Math.max(50, Math.hypot((v2.x + 1) / 2 * innerWidth - sx, (1 - v2.y) / 2 * innerHeight - sy));
+    const d = Math.hypot(sx - e.clientX, sy - e.clientY) / rad;
+    if (d < bd) { bd = d; best = id; }
+  }
+  if (bd > 1.25) { play('tap'); return; }
+  if (best === schovka.place.zone) { foundSchovka(); return; }
+  schovka.misses++;
+  play('boing');
+  const z = ZONES[best];
+  sparkles.userData.emit(new THREE.Vector3(...z.c), 12, 0.6, 0.2);
+  const t = schovka.misses >= 3 ? 'Tady nejsem! Poslechni si vzkaz.' : pickOne(['Tady nejsem!', 'Tady ne! Přečti si vzkaz ještě jednou.', 'Hihi, vedle!']);
+  showBubble('🙈 ' + t);
+  speak(t);
+  if (schovka.misses >= 3) setTimeout(readSchovka, 1200);
+}
+async function foundSchovka() {
+  const s = schovka, c = s.c;
+  s.found = true;
+  busy = true;
+  hidePanel(true);
+  try {
+    play('poof');
+    const y0 = c.holder.position.y;
+    await animate(0.7, k => { c.dis.uDis.value = 1 - k; c.holder.position.y = y0 + Math.sin(k * Math.PI) * 0.35; });
+    c.dis.uDis.value = 0; c.holder.position.y = y0;
+    const ctr = centerOf(c.obj).c;
+    sparkles.userData.emit(ctr, 60, 1.2, 0.35);
+    for (const ch of ['🎉', '✨', '💖']) floatUp(ch, ctr, { n: 2, spread: 0.6, rise: 0.8, life: 2 });
+    play('giggle');
+    const news = s.help ? null : giveStar(ctr);
+    const t = `Hurá! ${rod('Našla', 'Našel')} jsi mě!` + (s.help ? '' : ' Máš hvězdičku.') + (news ? ' ' + news : '');
+    showBubble('🙈 ' + t + (s.help ? '' : ' ⭐'));
+    speak(t.replace(/[^\p{L}\p{N}\s!?.,]/gu, ''));
+    const a = albumEntry(c);
+    if (a) { ageCare(a); a.pece.hra = Math.min(100, a.pece.hra + 10); saveAlbum(); }
+    dayEvent('schovka');
+    await wait(1.2);
+  } finally { busy = false; }
+  setPhase('schovka');
+}
+async function endSchovka() {
+  const s = schovka;
+  schovka = null;
+  if (!s || current !== s.c || s.c.where !== 'schovka') { setPhase(current ? 'stage' : 'stage'); return; }
+  const c = s.c;
+  if (c.dis.uDis.value > 0) await animate(0.4, k => { c.dis.uDis.value = 1 - k; });
+  c.dis.uDis.value = 0;
+  await bringToStage(c);
+  setPhase('stage');
+}
+
+// ---------- Tasks of the day and the chest ----------
+let den = Ukoly.loadDay(album.length > 0);
+function dayEvent(ev, detail = {}) {
+  if (den.date !== Ukoly.today()) den = Ukoly.loadDay(album.length > 0);
+  const done = Ukoly.progress(den, ev, detail);
+  done.forEach((t, i) => setTimeout(() => { showBubble(`✅ Úkol dne splněn: ${t.text}!`); play('place'); }, 3000 + i * 2500));
+  if (done.length && Ukoly.allDone(den)) {
+    Ukoly.markDay(den.date);
+    setTimeout(() => { const t = 'Všechny úkoly dne jsou hotové! Otevři dárek v kalendáři.'; showBubble('🎁 ' + t + ' 📅'); speak(t); }, 3000 + done.length * 2500);
+  }
+  renderDenBtn();
+}
+function renderDenBtn() {
+  const n = den.tasks.filter(t => t.n >= t.goal).length;
+  $('den-stav').textContent = den.opened ? '✓' : `${n}/3`;
+  $('btn-den').classList.toggle('ceka', Ukoly.allDone(den) && !den.opened);
+}
+const dnu = n => (n >= 2 && n <= 4 ? 'dny' : 'dní');
+function openDen() {
+  if (den.date !== Ukoly.today()) den = Ukoly.loadDay(album.length > 0);
+  const cal = $('den-kalendar');
+  cal.innerHTML = '';
+  for (const d of Ukoly.lastDays(7)) { const el = document.createElement('div'); el.className = 'dennik' + (d.today ? ' dnes' : ''); el.innerHTML = `${d.name}<b>${d.done ? '⭐' : '·'}</b>`; cal.append(el); }
+  const st = Ukoly.streak();
+  if (st >= 2) { const r = document.createElement('div'); r.className = 'rada'; r.textContent = `🔥 ${st} ${dnu(st)} v řadě!`; cal.append(r); }
+  const list = $('den-ukoly');
+  list.innerHTML = '';
+  for (const t of den.tasks) {
+    const b = document.createElement('button');
+    const ok = t.n >= t.goal;
+    b.className = 'ukol' + (ok ? ' hotovo' : '');
+    b.innerHTML = `<span class="ikona">${t.icon}</span><span class="text">${t.text}</span><span class="stav">${ok ? '✅' : `${t.n} / ${t.goal}`}</span>`;
+    b.onclick = () => { play('tap'); speak(t.text); };
+    list.append(b);
+  }
+  const tr = $('den-truhla'), ready = Ukoly.allDone(den), od = $('den-odmena');
+  tr.className = 'truhla' + (den.opened ? ' otevrena' : ready ? ' pripravena' : '');
+  od.hidden = false;
+  if (den.opened) {
+    const o = ozdobaById(den.opened);
+    tr.textContent = o.ikona;
+    od.textContent = `Dnes jsi ${rod('dostala', 'dostal')} ${o.nazev.toLowerCase()}. Zítra budou nové úkoly a nový dárek!`;
+  } else {
+    tr.textContent = '🎁';
+    od.textContent = ready ? 'Klepni na dárek!' : 'Splň všechny tři úkoly a dárek se otevře. Je v něm ozdoba do pokojíčku.';
+  }
+  $('den').hidden = false;
+}
+$('den-truhla').addEventListener('click', () => {
+  if (den.opened) { $('den').hidden = true; if (!busy && current?.where !== 'schovka') openRoom(); return; }
+  if (!Ukoly.allDone(den)) { play('boing'); speak('Ještě nejsou hotové všechny úkoly.'); return; }
+  const o = Ukoly.chestReward(pokoj.ozdoby);
+  pokoj.ozdoby.push(o.id);
+  den.opened = o.id;
+  Ukoly.saveDay(den);
+  savePokoj();
+  play('poof'); setTimeout(() => play('giggle'), 300);
+  openDen();
+  $('den-odmena').textContent = `Máš novou ozdobu: ${o.ikona} ${o.nazev}! Klepni na ni a postav ji v pokojíčku na místo se ✨.`;
+  speak(`Máš novou ozdobu: ${o.nazev}!`);
+  renderDenBtn();
+});
+$('btn-den').addEventListener('click', () => { initAudio(); play('tap'); openDen(); });
+$('den-zavrit').addEventListener('click', () => { $('den').hidden = true; });
+$('den').addEventListener('click', e => { if (e.target.id === 'den') $('den').hidden = true; });
 
 async function placeProps() {
   // Real furniture and toys from the catalog decorate the room.
@@ -2127,6 +2510,7 @@ async function start() {
   await captureRoomReflections();
   buildTrophies();
   restoreRoom();
+  renderDenBtn();
   requestAnimationFrame(loop);
   await putOnStage({ type: 'item', item: first }, { appear: false });
   loadBar.style.width = '100%';
@@ -2136,7 +2520,7 @@ async function start() {
   checkForUpdate();
 
   if (params.has('nahledy')) { window.__kk = { ITEMS, putOnStage, spinner, camera, renderer, resize }; $('nacitani').classList.add('pryc'); return; }
-  if (params.has('demo')) { window.__kk = { choose, putOnStage, current: () => current, ITEMS, newMonsterSpec, setPhase, phase: () => phase, startSpecial, album: () => album, openRoom, room, decor: () => decor, placeInRoom, spots: () => room.userData.spots, setAlbum: a => { album = a; saveAlbum(); }, renderer, scene, camera, box,
+  if (params.has('demo')) { window.__kk = { choose, putOnStage, current: () => current, ITEMS, newMonsterSpec, setPhase, phase: () => phase, startSpecial, album: () => album, openRoom, startSchovka, schovka: () => schovka, dayEvent, den: () => den, openDen, kniha: () => kniha, second: () => second, LID_STEPS, fireLaser, showPicker, setStars: n => { stars = n; }, room, decor: () => decor, placeInRoom, spots: () => room.userData.spots, setAlbum: a => { album = a; saveAlbum(); }, renderer, scene, camera, box,
     screen: which => { const v = (which === 'box' ? box.localToWorld(new THREE.Vector3(0, 0.9, 0)) : centerOf(current.obj).c).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; } }; }
 
   $('start').hidden = false;

@@ -170,3 +170,26 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 #jmeno .tlacitka { gap: 12px; margin-top: 6px; }
 .skupina { display: flex; gap: 8px; }
 #horni .skupina > * { pointer-events: auto; }
+
+@media (max-width: 520px) { #titulek { display: none; } }
+#vyber-nadpis.druha { color: var(--zlata); }
+#schovka-karta { margin: 4px 0 6px; }
+.kalendar { display: flex; justify-content: center; gap: 6px; margin: 4px 0 12px; flex-wrap: wrap; }
+.kalendar .dennik { width: 40px; padding: 4px 0; border-radius: 12px; background: var(--sklo-svetle); text-align: center; font-size: 12px; font-weight: 800; }
+.kalendar .dennik b { display: block; font-size: 20px; line-height: 1.3; }
+.kalendar .dennik.dnes { outline: 2px solid var(--zlata); }
+.kalendar .rada { width: 100%; text-align: center; font-weight: 800; color: var(--zlata); margin-top: 4px; }
+.ukoly { display: flex; flex-direction: column; gap: 8px; }
+.ukol { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; background: var(--sklo-svetle); font-size: 17px; font-weight: 800; text-align: left; }
+.ukol .ikona { font-size: 28px; }
+.ukol .text { flex: 1; }
+.ukol .stav { font-size: 15px; color: var(--zlata); white-space: nowrap; }
+.ukol.hotovo { background: rgba(123,227,138,.22); }
+.ukol.hotovo .text { text-decoration: line-through; opacity: .75; }
+.truhla { display: block; margin: 14px auto 4px; font-size: 64px; line-height: 1; padding: 10px 26px; border-radius: 24px; background: var(--sklo-svetle); filter: grayscale(1); opacity: .55; }
+.truhla.pripravena { filter: none; opacity: 1; background: linear-gradient(180deg, #ffe08a, #ff9a3c); box-shadow: 0 6px 0 #b25a12, 0 0 30px rgba(255,211,110,.7); animation: chce 1.2s ease-in-out infinite; }
+.truhla.otevrena { filter: none; opacity: 1; }
+#btn-den.ceka { animation: chce 1.2s ease-in-out infinite; box-shadow: 0 0 18px rgba(255,211,110,.8); }
+#den-stav { margin-left: 2px; }
+.dlazdice.tajne { background: linear-gradient(160deg, rgba(124,77,255,.35), rgba(255,95,200,.2)); }
+.dlazdice.tajne .ikona { font-size: 26px; letter-spacing: 2px; }
