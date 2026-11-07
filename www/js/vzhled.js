@@ -108,6 +108,8 @@ function wantsOutline(o) {
 function addOutline(o) {
   const l = o.isSkinnedMesh ? new THREE.SkinnedMesh(o.geometry, outlineMat) : new THREE.Mesh(o.geometry, outlineMat);
   if (o.isSkinnedMesh) l.bind(o.skeleton, o.bindMatrix);
+  // morph-animated models (the parrot flaps its wings this way): the outline must move with them, not stay in the rest pose
+  if (o.morphTargetInfluences) { l.morphTargetInfluences = o.morphTargetInfluences; l.morphTargetDictionary = o.morphTargetDictionary; }
   l.name = 'obrys';
   l.userData.outline = true;
   l.raycast = () => {};

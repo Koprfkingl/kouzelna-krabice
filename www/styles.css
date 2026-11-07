@@ -77,7 +77,11 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
   display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding: 4px 3px 6px; font-size: 13px; font-weight: 600;
   line-height: 1.1; text-align: center; overflow: hidden; color: var(--ink); transition: transform .1s, box-shadow .1s; }
 .dlazdice:active { transform: translateY(3px) scale(.97); box-shadow: 0 1px 0 var(--ink); }
-.dlazdice.vybrano { background: var(--zluta); }
+.dlazdice.vybrano, .dlazdice.foto-nova.vybrano { background: var(--zluta); }
+/* tiles with a picture hide the background, so the choice gets a thick frame and a tick on top of the picture */
+.dlazdice.vybrano::before { content: ''; position: absolute; inset: 0; z-index: 2; border: 6px solid var(--zluta); border-radius: inherit; pointer-events: none; }
+.dlazdice.vybrano::after { content: '✔'; position: absolute; top: 3px; right: 3px; z-index: 3; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--zluta); border: 3px solid var(--ink); display: grid; place-items: center; font-size: 15px; font-weight: 900; color: var(--ink); pointer-events: none; }
 .dlazdice img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .dlazdice .jmeno { position: relative; z-index: 1; background: var(--krem); border: 2px solid var(--ink); padding: 1px 6px; border-radius: 9px; }
 .dlazdice .ikona { font-size: 34px; margin-bottom: auto; margin-top: auto; }
