@@ -167,6 +167,33 @@ function makeTrophyShelf(BACK) {
   return { group: g, slots };
 }
 
+// A low glass cabinet under the trophies with four compartments (fochy) for the secret spells.
+const FOCH_COLORS = [0xffd1e3, 0xfff0b3, 0xc9ecff, 0xe3d4ff];
+function makeVitrina(BACK) {
+  const g = new THREE.Group();
+  g.position.set(3.3, 0, BACK + 0.24);
+  const W = 1.44, D = 0.4, T = 0.035, floors = [0.1, 0.53], top = 0.96;
+  const mat = new THREE.MeshStandardMaterial({ color: 0x8fd8c4, roughness: 0.5 });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xffc93c, metalness: 1, roughness: 0.3 });
+  const box = (w, h, d, x, y, z, m = mat) => { const b = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 2, 0.01), m); b.position.set(x, y, z); b.castShadow = b.receiveShadow = true; g.add(b); return b; };
+  for (const y of [floors[0] - T / 2, floors[1] - T / 2, top]) box(W, T, D, 0, y, 0);
+  for (const x of [-W / 2, 0, W / 2]) box(T, top - floors[0] + T, D, x, (top + floors[0]) / 2, 0);
+  for (const s of [-1, 1]) for (const z of [-1, 1]) box(0.05, 0.1, 0.05, s * (W / 2 - 0.05), 0.04, z * (D / 2 - 0.05));
+  for (const s of [-1, 1]) { const k = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8), gold); k.position.set(s * W / 2, top + 0.04, D / 2 - 0.04); g.add(k); }
+  const fochy = [];
+  let i = 0;
+  for (const fy of [floors[1], floors[0]]) for (const fx of [-W / 4, W / 4]) {
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(W / 2 - T, 0.43 - T), new THREE.MeshStandardMaterial({ color: FOCH_COLORS[i], roughness: 0.8 }));
+    back.position.set(fx, fy + 0.2, -D / 2 + 0.01);
+    g.add(back);
+    const slots = [-0.24, -0.08, 0.08, 0.24].map(dx => new THREE.Vector3(3.3 + fx + dx, fy, BACK + 0.24 + 0.02));
+    fochy.push({ center: new THREE.Vector3(3.3 + fx, fy + 0.2, BACK + 0.24), slots });
+    i++;
+  }
+  g.userData.pokoj = { kind: 'vitrina' };
+  return { group: g, fochy };
+}
+
 function emptyFrameTexture() {
   return canvasTex(128, 160, (g, w, h) => {
     g.fillStyle = '#fff7fb'; g.fillRect(0, 0, w, h);
@@ -344,6 +371,9 @@ export function makeRoom(tex) {
   const trophies = makeTrophyShelf(BACK);
   room.add(trophies.group);
   room.userData.trophySlots = trophies.slots;
+  const vitrina = makeVitrina(BACK);
+  room.add(vitrina.group);
+  room.userData.vitrina = vitrina;
 
   // Empty picture frames: the child hangs photos and monster pictures in them.
   room.userData.frames = [
@@ -362,7 +392,7 @@ export function makeRoom(tex) {
     { id: 'polickaC', pos: V(1.72, 2.195, BACK + 0.13), size: 0.4, rot: 0 },
     { id: 'zemA', pos: V(-1.9, 0, 0.75), size: 0.75, rot: 0.6 },
     { id: 'zemB', pos: V(2.75, 0, 0.45), size: 0.75, rot: -0.6 },
-    { id: 'zemC', pos: V(3.3, 0, BACK + 0.75), size: 0.75, rot: -0.2 },
+    { id: 'zemC', pos: V(3.75, 0, -1.35), size: 0.75, rot: -0.2 },
     { id: 'zemD', pos: V(-2.75, 0, -0.35), size: 0.75, rot: 0.5 },
   ];
   room.userData.swaying = []; // props that sway (the plant), added by the game

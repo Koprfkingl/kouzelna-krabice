@@ -76,7 +76,8 @@ try {
   });
 
   const phase = () => kk(() => window.__kk.phase());
-  const main = async extra => { await page.click('#btn-hlavni', { force: true }); await ready(extra); };
+  // a DOM click: the pulsing button can be mid-animation, which made Playwright's click flaky in CI
+  const main = async extra => { await page.waitForSelector('#btn-hlavni', { timeout: T }); await page.evaluate(() => document.querySelector('#btn-hlavni').click()); await ready(extra); };
 
   await run('Proměna laserem', async () => {
     await kk(() => window.__kk.LID_STEPS.stage()); await ready();
@@ -169,7 +170,7 @@ try {
     await kk(() => window.__kk.startSchovka()); await ready();
     check(!!(await text('#schovka-karta')).trim(), 'je vidět vzkaz od příšerky');
     const pos = await kk(() => {
-      const k = window.__kk, z = { postel: [-3.7, 0.5, -1.6], kytka: [-2.4, 0.55, -2.15], okno: [-1.45, 1.8, -2.55], krabice: [0, 0.55, -1.05], taburet: [2.15, 0.2, -1.2], pohary: [3.3, 1.5, -2.45], knizky: [1.4, 1.85, -2.47] }[k.schovka().place.zone];
+      const k = window.__kk, z = { postel: [-3.7, 0.5, -1.6], kytka: [-2.4, 0.55, -2.15], okno: [-1.45, 1.8, -2.55], krabice: [0, 0.55, -1.05], taburet: [2.15, 0.2, -1.2], pohary: [2.35, 0.3, -2.25], knizky: [1.4, 1.85, -2.47] }[k.schovka().place.zone];
       return z;
     });
     // pan the room until the hiding place is on screen, then tap it

@@ -67,6 +67,7 @@ Secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_AL
 - `www/js/pece.js`: péče o příšerky
 - `www/js/citanka.js`: čtení s příšerkou, šatník a přehled pro rodiče
 - `www/js/pokojicek.js`: zdobení pokojíčku, rámečky, poháry a ozdoby
+- `www/js/vitrina.js`: vitrína tajných kouzel v pokojíčku, čtyři poličky k procházení
 - `www/js/kniha.js`, `www/js/kouzla.js`: dvě věci v krabici a Kniha kouzel
 - `www/js/schovka.js`: schovávaná se čtením
 - `www/js/den.js`, `www/js/ukoly.js`: úkoly dne, dárek a kalendář

@@ -25,6 +25,7 @@ import { buildTrophies, decor, openRoom, placeInRoom, restoreRoom, roomPointerDo
 import { addSecond, dropSecond, kniha, renderAlbumTabs } from './kniha.js';
 import { endSchovka, readSchovka, renderSchovkaCard, startSchovka } from './schovka.js';
 import { dayEvent, den, openDen, renderDenBtn } from './den.js';
+import { moveFoch, vitrinaTarget, vitrinaTip, vitrinaTitle } from './vitrina.js';
 
 // ---------- Building things ----------
 const gltfCache = {};
@@ -415,6 +416,7 @@ function startHero(c, start = performance.now()) {
 function shotTarget(name, now = performance.now()) {
   if (name === 'hero') return heroTarget(now);
   if (name === 'pokoj') return roomTarget();
+  if (name === 'vitrina') return vitrinaTarget();
   const s = SHOTS[name];
   const fit = Math.min(1.9, Math.max(1, 0.8 / camera.aspect)); // narrow screens: step back
   const pos = s.pos.clone().sub(s.look).multiplyScalar(fit).add(s.look);
@@ -500,7 +502,7 @@ canvas.addEventListener('lostpointercapture', endLidDrag);
 
 canvas.addEventListener('pointerdown', e => {
   initAudio();
-  if (S.phase === 'pokoj' || S.phase === 'schovka') { if (!S.busy) roomPointerDown(e); return; }
+  if (S.phase === 'pokoj' || S.phase === 'schovka' || S.phase === 'vitrina') { if (!S.busy) roomPointerDown(e); return; }
   if (S.busy || !S.current || drag || lidDrag) return;
   setPointer(e);
   if (!raycaster.intersectObject(S.current.holder, true).length) {
@@ -986,7 +988,7 @@ function setPhase(p) {
   $('pece').hidden = p !== 'care';
   S.tapHook = p === 'care' ? (k => k === 'stroke' ? pet() : tapThing(S.current)) : null;
   $('schovka-karta').hidden = !(p === 'schovka' && S.schovka && !S.schovka.found);
-  S.shot = p === 'pokoj' || p === 'schovka' ? 'pokoj' : p === 'result' ? 'hero' : ['inside', 'closed', 'done'].includes(p) ? 'box' : p === 'care' ? 'care' : 'stage';
+  S.shot = p === 'vitrina' ? 'vitrina' : p === 'pokoj' || p === 'schovka' ? 'pokoj' : p === 'result' ? 'hero' : ['inside', 'closed', 'done'].includes(p) ? 'box' : p === 'care' ? 'care' : 'stage';
   const entry = albumEntry(c);
   if (entry) { ageCare(entry); const mon = c.obj.userData.monster; if (mon) mon.expr = { ...(mon.expr || {}), sad: !!entry.pece.bebi || moodOf(entry).avg < 25 }; }
   const readBtn = entry && c.where === 'stage' ? action('🔤 Čtení s příšerkou', async () => openReading()) : null;
@@ -1009,6 +1011,11 @@ function setPhase(p) {
       main = action('🔊 Přečti mi to', async () => { readSchovka(); setPhase('schovka'); });
       extra = [action('⬅️ Konec schovávané', async () => endSchovka())];
     }
+  } else if (p === 'vitrina') {
+    title = vitrinaTitle();
+    tip = vitrinaTip();
+    main = action('⬅️ Zpět do pokoje', async () => setPhase('pokoj'));
+    extra = [action('◀️ Předchozí polička', async () => moveFoch(-1)), action('Další polička ▶️', async () => moveFoch(1))];
   } else if (p === 'pokoj') {
     title = '🏠 Můj pokojíček';
     const can = c && c.where === 'stage' && srcOf(c);

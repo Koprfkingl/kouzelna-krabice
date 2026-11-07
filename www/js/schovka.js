@@ -19,7 +19,7 @@ const ZONES = {
   okno: { c: [-1.45, 1.8, -2.55], r: 0.75 },
   krabice: { c: [0, 0.55, -1.05], r: 0.85 },
   taburet: { c: [2.15, 0.2, -1.2], r: 0.45 },
-  pohary: { c: [3.3, 1.5, -2.45], r: 0.75 },
+  pohary: { c: [2.75, 0.8, -2.3], r: 0.95 },
   knizky: { c: [1.4, 1.85, -2.47], r: 0.7 },
 };
 const SCHOVKY = [
@@ -29,7 +29,7 @@ const SCHOVKY = [
   { id: 'na-okne', zone: 'okno', text: 'JSEM NA OK-NĚ.', pos: [-1.45, 1.13, -2.45], size: 0.36 },
   { id: 'za-krabici', zone: 'krabice', text: 'JSEM ZA KRA-BI-CÍ.', pos: [0.45, 0, -1.95], size: 0.42 },
   { id: 'na-taburetu', zone: 'taburet', text: 'JSEM NA TA-BU-RE-TU.', size: 0.45, conflict: 'taburet', spot: 'taburet' },
-  { id: 'u-poharu', zone: 'pohary', text: 'JSEM U PO-HÁ-RŮ.', pos: [3.0, 0, -2.25], size: 0.45, conflict: 'zemC' },
+  { id: 'u-poharu', zone: 'pohary', text: 'JSEM U PO-HÁ-RŮ.', pos: [2.35, 0, -2.25], size: 0.45 },
   { id: 'pod-knizkami', zone: 'knizky', text: 'JSEM POD KNÍŽ-KA-MI.', pos: [1.4, 0, -2.3], size: 0.45 },
 ];
 

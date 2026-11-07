@@ -13,6 +13,7 @@ import { toonMaterial } from './vzhled.js';
 import { camera, canvas, room, scene, sparkles, spinner, texLoader } from './scena.js';
 import { emojiSprite } from './pece.js';
 import { schovkaTap } from './schovka.js';
+import { fillVitrina, openVitrina, tapKouzlo } from './vitrina.js';
 import { dayEvent, den } from './den.js';
 
 // Things from the stage can be put on spots around the room (bed, pouf, shelf, floor), photos hang in frames,
@@ -171,6 +172,7 @@ function roomTarget() {
 async function openRoom() {
   hideBubble();
   buildTrophies(true);
+  fillVitrina();
   S.roomPan = 0;
   setPhase('pokoj');
 }
@@ -182,13 +184,14 @@ canvas.addEventListener('pointermove', e => {
   if (!roomPtr || e.pointerId !== roomPtr.id) return;
   const dx = e.clientX - roomPtr.x;
   if (!roomPtr.moved && Math.abs(dx) < 12) return;
+  if (S.phase === 'vitrina') { roomPtr.moved = true; return; } // the close view of the cabinet does not pan
   roomPtr.moved = true;
   S.roomPan = THREE.MathUtils.clamp(roomPtr.pan0 - dx / (innerWidth * 0.45), -1, 1);
 });
 const roomUp = e => {
   if (!roomPtr || e.pointerId !== roomPtr.id) return;
   const p = roomPtr; roomPtr = null;
-  if (!p.moved && (S.phase === 'pokoj' || S.phase === 'schovka') && !S.busy) roomTap(e);
+  if (!p.moved && (S.phase === 'pokoj' || S.phase === 'schovka' || S.phase === 'vitrina') && !S.busy) roomTap(e);
 };
 canvas.addEventListener('pointerup', roomUp);
 canvas.addEventListener('pointercancel', e => { if (roomPtr && e.pointerId === roomPtr.id) roomPtr = null; });
@@ -196,7 +199,8 @@ canvas.addEventListener('pointercancel', e => { if (roomPtr && e.pointerId === r
 function roomTap(e) {
   if (S.phase === 'schovka') { schovkaTap(e); return; }
   setPointer(e);
-  const targets = [...(markers.visible ? markers.children : []), ...Object.values(decor).map(c => c.holder), ...room.userData.frames.map(f => f.group), trophies];
+  const targets = [...(markers.visible ? markers.children : []), ...Object.values(decor).map(c => c.holder), ...room.userData.frames.map(f => f.group), trophies,
+    room.userData.vitrina.group, ...room.children.filter(o => o.userData.pokoj && o.userData.pokoj.kind === 'kouzlo')];
   const hits = raycaster.intersectObjects(targets, true);
   for (const h of hits) {
     let o = h.object;
@@ -217,7 +221,13 @@ function roomTap(e) {
         else { if (S.current) await removeCurrent(); await bringToStage(d); savePokoj(); speak(`${d.name} je před krabicí.`); }
       }).then(() => setPhase('pokoj'));
     } else if (info.kind === 'frame') openFramePicker(room.userData.frames.find(f => f.id === info.id));
-    else if (info.kind === 'trophy') { play(info.got ? 'giggle' : 'tap'); showBubble(info.text); speak(info.text.replace(/[^\p{L}\p{N}\s!?.,]/gu, '')); if (info.got) sparkles.userData.emit(o.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.15, 0)), 14, 0.7, 0.2); }
+    else if (info.kind === 'kouzlo') tapKouzlo(info);
+    else if (info.kind === 'vitrina') {
+      if (S.phase === 'vitrina') return;
+      const f = room.userData.vitrina.fochy;
+      let best = 0; f.forEach((x, i) => { if (x.center.distanceTo(h.point) < f[best].center.distanceTo(h.point)) best = i; });
+      play('tap'); openVitrina(best);
+    } else if (info.kind === 'trophy') { play(info.got ? 'giggle' : 'tap'); showBubble(info.text); speak(info.text.replace(/[^\p{L}\p{N}\s!?.,]/gu, '')); if (info.got) sparkles.userData.emit(o.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.15, 0)), 14, 0.7, 0.2); }
     return;
   }
 }
