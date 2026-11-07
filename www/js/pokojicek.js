@@ -108,6 +108,7 @@ async function bringToStage(d) {
   spinner.add(d.holder);
   d.holder.position.set(0, 0, 0); d.holder.rotation.set(0, 0, 0); d.holder.scale.setScalar(1);
   d.where = 'stage'; d.spot = null; d.raised = false;
+  d.fromRoom = true; // the room then offers to put it in the box, tidy it away or set it free
   S.current = d;
   play('place');
 }

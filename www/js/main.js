@@ -191,10 +191,20 @@ async function releaseCurrent() {
   floatUp('💖', centerOf(c.obj).c, { n: 6, spread: 0.35 });
   const t = `Ahoj, ${name}! Ať se ti daří!`;
   showBubble('🕊️ ' + t); speak(t);
-  const inBox = c.where === 'box';
+  const inBox = c.where === 'box', inRoom = S.phase === 'pokoj';
   await removeCurrent();
   if (inBox) { mistTarget = 0; await setLid(false); }
-  await showPicker();
+  if (inRoom) setPhase('pokoj'); else await showPicker();
+}
+// Takes what stands in front of the box away (it stays in the catalog, the collection or the book).
+async function tidyCurrent() {
+  const c = S.current;
+  if (!c || c.where !== 'stage') return;
+  play('poof');
+  const t = `${c.name} je uklizen${c.g === 'm' ? 'ý' : c.g === 'n' ? 'é' : 'á'}.`;
+  showBubble('🧹 ' + t); speak(t);
+  await removeCurrent();
+  setPhase('pokoj');
 }
 async function removeCurrent(fast = false) {
   dropSecond();
@@ -1020,10 +1030,15 @@ function setPhase(p) {
     title = '🏠 Můj pokojíček';
     const can = c && c.where === 'stage' && srcOf(c);
     const ozd = unplacedOzdoby().length;
-    tip = can ? `Klepni na ✨ tam, kam to chceš postavit. Na rámeček dej fotku. Posouvej prstem do stran.`
+    tip = can ? `Klepni na ✨ tam, kam to chceš postavit, nebo to dej rovnou do krabice. Posouvej prstem do stran.`
       : ozd ? 'Klepni na ✨ a postav tam ozdobu z dárku. Klepnutím na věc v pokoji ji vrátíš před krabici.'
       : 'Klepni na věc v pokoji a postavíš ji před krabici. Na rámeček dej fotku, na poličce jsou trofeje.';
     main = action('⬅️ Zpět ke krabici', async () => { if (S.current) setPhase(S.current.where === 'box' ? (lidOpen ? 'inside' : 'closed') : 'stage'); else showPicker(); });
+    // what was just taken from the room can go straight into the box, away, or (a monster) free
+    if (c && c.where === 'stage' && c.fromRoom) {
+      extra = [action('📦 Dát do krabice', async () => { await setLid(true); await moveCurrent('box'); setPhase('inside'); }),
+        action('🧹 Uklidit', tidyCurrent), freeBtn].filter(Boolean);
+    }
     showMarkers(!!can || ozd > 0);
   } else if (p === 'stage') {
     title = `${c.name} čeká před krabicí`;
