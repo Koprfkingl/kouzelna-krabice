@@ -44,6 +44,12 @@ export function addDissolve(material, uniforms) {
 // Clones every material of an object (so each copy dissolves on its own) and hooks the dissolve in.
 export function prepareDissolve(root) {
   const uniforms = makeDissolveUniforms();
+  joinDissolve(root, uniforms);
+  root.userData.dissolve = uniforms;
+  return uniforms;
+}
+// Hooks a part added later (an accessory) into the dissolve of the object it belongs to.
+export function joinDissolve(root, uniforms) {
   root.traverse(o => {
     if (!o.isMesh) return;
     o.castShadow = true;
@@ -58,6 +64,4 @@ export function prepareDissolve(root) {
     };
     o.material = Array.isArray(o.material) ? o.material.map(fix) : fix(o.material);
   });
-  root.userData.dissolve = uniforms;
-  return uniforms;
 }

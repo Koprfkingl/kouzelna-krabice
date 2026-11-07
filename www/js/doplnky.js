@@ -1,5 +1,8 @@
 // Rewards for reading: accessories a monster can wear. Unlocked by stars, one per slot.
 import * as THREE from 'three';
+import { CARTOON } from './util.js';
+import { toonify } from './vzhled.js';
+import { joinDissolve } from './dissolve.js';
 
 export const DOPLNKY = [
   { id: 'masle', nazev: 'Mašle', ikona: '🎀', hvezdy: 5, slot: 'vlasy' },
@@ -116,6 +119,9 @@ export function wear(holder, ids = []) {
     if (!BUILD[id]) continue;
     const o = shadowy(BUILD[id](mt));
     o.userData.doplnek = id;
+    // the same look as the monster, and it must vanish with it (otherwise a hat floats in the air during hide and seek)
+    if (CARTOON) toonify(o);
+    if (holder.userData.dissolve) joinDissolve(o, holder.userData.dissolve);
     mt.group.add(o);
     parts.push(o);
   }
