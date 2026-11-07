@@ -39,7 +39,7 @@ Kompromisy: liška je nízkopolygonový model (realistické volně licencované 
 ## Nová verze
 
 1. Uprav hru ve složce `www/` (obyčejná webová stránka). Pro zkoušení v počítači: `npm install`, `npm run vendor` a pak třeba `python3 -m http.server -d www` a otevři http://localhost:8000.
-2. Před pushem spusť `npm run lint` (najde překlepy v názvech mezi soubory) a `npm test` (projde hru v prohlížeči bez okna, trvá pár minut, snímky ukládá do `tests/out/`).
+2. Před pushem spusť `npm run lint` (najde překlepy v názvech mezi soubory) a `npm test`. Ten nejdřív zkontroluje všechny modely (`npm run test:modely`: nic nesmí zůstat vidět po rozpuštění, obrysy se musí hýbat s modelem) a pak projde hru v prohlížeči bez okna (`npm run test:hra`, trvá pár minut, snímky ukládá do `tests/out/`).
 3. Zvyš `version` v `package.json` a pushni do `main`.
 
 GitHub Actions hru nejdřív otestuje. Když testy projdou, sestaví APK a protože je verze nová, samo vytvoří vydání. Aplikace v telefonu ho při dalším spuštění najde a nabídne.

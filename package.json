@@ -12,7 +12,9 @@
     "android:sync": "npm run vendor && cap sync android",
     "android:build": "npm run android:sync && cd android && ./gradlew assembleDebug",
     "lint": "eslint www/js tests",
-    "test": "node tests/hra.test.mjs"
+    "test": "node tests/modely.test.mjs && node tests/hra.test.mjs",
+    "test:modely": "node tests/modely.test.mjs",
+    "test:hra": "node tests/hra.test.mjs"
   },
   "dependencies": {
     "@capacitor-community/text-to-speech": "8.0.2",
