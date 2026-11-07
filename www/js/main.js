@@ -1037,8 +1037,8 @@ function setPhase(p) {
     title = '🏠 Můj pokojíček';
     const can = c && c.where === 'stage' && srcOf(c);
     const ozd = unplacedOzdoby().length;
-    tip = can ? `Klepni na ✨ tam, kam to chceš postavit, nebo to dej rovnou do krabice. Posouvej prstem do stran.`
-      : ozd ? 'Klepni na ✨ a postav tam ozdobu z dárku. Klepnutím na věc v pokoji ji vrátíš před krabici.'
+    tip = can ? `Klepni na ⭐ tam, kam to chceš postavit, nebo to dej rovnou do krabice. Posouvej prstem do stran.`
+      : ozd ? 'Klepni na ⭐ a postav tam ozdobu z dárku. Klepnutím na věc v pokoji ji vrátíš před krabici.'
       : 'Klepni na věc v pokoji a postavíš ji před krabici. Na rámeček dej fotku, na poličce jsou trofeje.';
     main = action('⬅️ Zpět ke krabici', async () => { if (S.current) setPhase(S.current.where === 'box' ? (lidOpen ? 'inside' : 'closed') : 'stage'); else showPicker(); });
     // what was just taken from the room can go straight into the box, away, or (a monster) free

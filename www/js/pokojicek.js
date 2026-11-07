@@ -82,7 +82,7 @@ function updateDecor(t, dt) {
     if (ud.float) c.obj.position.y = Math.sin(t * 1.7 + c.maxDim) * 0.04;
     if (ud.ozdoba) updateOzdoba(c.obj, t);
   }
-  if (markers.visible) for (const m of markers.children) { const k = 1 + 0.18 * Math.sin(t * 4 + m.position.x * 3); m.scale.setScalar(m.userData.base * k); }
+  if (markers.visible) for (const m of markers.children) { const w = t * 4 + m.position.x * 3; m.scale.setScalar(m.userData.base * (1 + 0.15 * Math.sin(w))); m.position.y = m.userData.y + 0.05 * Math.abs(Math.sin(w * 0.5)); m.material.rotation = 0.15 * Math.sin(w * 0.7); }
 }
 
 // Flying a thing along a little arc.
@@ -133,15 +133,36 @@ async function placeInRoom(spot) {
 const markers = new THREE.Group();
 markers.visible = false;
 scene.add(markers);
+// A free spot: a big golden star with a dark outline and a glow, so it stands out on the pastel room.
+let markerTex = null;
+function markerTexture() {
+  if (markerTex) return markerTex;
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const glow = g.createRadialGradient(128, 128, 20, 128, 128, 128);
+  glow.addColorStop(0, 'rgba(255,255,255,0.95)'); glow.addColorStop(0.45, 'rgba(255,236,150,0.6)'); glow.addColorStop(1, 'rgba(255,236,150,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, 256, 256);
+  g.beginPath();
+  for (let i = 0; i < 10; i++) { const r = i % 2 ? 34 : 78, a = -Math.PI / 2 + i * Math.PI / 5; g.lineTo(128 + Math.cos(a) * r, 132 + Math.sin(a) * r); }
+  g.closePath();
+  g.lineJoin = 'round'; g.lineWidth = 14; g.strokeStyle = '#3a1f63'; g.stroke();
+  g.fillStyle = '#ffc928'; g.fill();
+  g.beginPath(); g.arc(108, 112, 10, 0, 7); g.fillStyle = 'rgba(255,255,255,0.85)'; g.fill();
+  markerTex = new THREE.CanvasTexture(c); markerTex.colorSpace = THREE.SRGBColorSpace;
+  return markerTex;
+}
 function showMarkers(on) {
   markers.clear();
   markers.visible = on;
   if (!on) return;
   for (const s of room.userData.spots) {
     if (decor[s.id]) continue;
-    const m = emojiSprite('✨', 0.26);
-    m.position.copy(s.pos).add(new THREE.Vector3(0, 0.16, 0.05));
-    m.userData = { base: 0.26, pokoj: { kind: 'spot', id: s.id } };
+    // drawn on top of everything, so a star is never hidden behind furniture
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: markerTexture(), transparent: true, depthWrite: false, depthTest: false }));
+    m.renderOrder = 10;
+    m.position.copy(s.pos).add(new THREE.Vector3(0, 0.2, 0.05));
+    m.userData = { base: 0.42, y: m.position.y, pokoj: { kind: 'spot', id: s.id } };
+    m.scale.setScalar(0.42);
     markers.add(m);
   }
 }
@@ -388,7 +409,7 @@ async function putAwayOzdoba(c) {
     await animate(0.4, k => { c.dis.uDis.value = k; });
     c.holder.removeFromParent(); disposeObj(c.holder);
     savePokoj();
-    const t = `${c.name} je uklizen${c.g === 'm' ? 'ý' : c.g === 'n' ? 'é' : 'á'}. Klepni na ✨ a dej ji jinam.`;
+    const t = `${c.name} je uklizen${c.g === 'm' ? 'ý' : c.g === 'n' ? 'é' : 'á'}. Klepni na ⭐ a dej ji jinam.`;
     showBubble(t);
   } finally { S.busy = false; }
   setPhase('pokoj');
