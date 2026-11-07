@@ -80,12 +80,9 @@ try {
   const main = async extra => { await page.waitForSelector('#btn-hlavni', { timeout: T }); await page.evaluate(() => document.querySelector('#btn-hlavni').click()); await ready(extra); };
 
   await run('Proměna laserem', async () => {
-    await kk(() => window.__kk.LID_STEPS.stage()); await ready();
-    check(await phase() === 'stageOpen', 'víko se otevřelo');
-    await main();
-    check(await phase() === 'inside', 'věc je v krabici');
-    await main();
-    check(await phase() === 'closed', 'víko je zavřené');
+    check(await phase() === 'stage', 'věc čeká před krabicí');
+    await main();                                               // one tap: in, lid shut
+    check(await phase() === 'closed', 'věc je v zavřené krabici');
     await main();                                               // laser
     check(await phase() === 'done', 'laser proměnil věc');
     await main(3500);                                           // open
@@ -97,15 +94,15 @@ try {
   await run('Kniha kouzel', async () => {
     await kk(async () => { const k = window.__kk; await k.choose({ type: 'item', item: k.ITEMS.find(i => i.id === 'liska') }); });
     await ready();
-    await kk(() => window.__kk.LID_STEPS.stage()); await ready();
-    await main();
+    check(await phase() === 'closed', 'věc z nabídky skočila rovnou do krabice');
     const add = (await extras()).find(e => /druhou/i.test(e.t));
     check(!!add, 'nabízí přidat druhou věc');
     await add.b.click(); await page.waitForTimeout(600);
     await kk(() => { const k = window.__kk; k.choose({ type: 'item', item: k.ITEMS.find(i => i.id === 'kytka') }); });
     await ready();
     check(!!(await kk(() => window.__kk.second())), 'v krabici jsou dvě věci');
-    await main(); await main(); await main(3500);
+    check(await phase() === 'closed', 'víko se samo zavřelo');
+    await main(); await main(3500);
     check(Object.keys(await kk(() => window.__kk.kniha())).includes('kvetouci-liska'), 'tajné kouzlo je v Knize kouzel');
     check(/Tajné kouzlo/.test(await text('#bublina')), 'bublina hlásí tajné kouzlo');
     await shot('2-kniha');

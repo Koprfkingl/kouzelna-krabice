@@ -223,7 +223,7 @@ async function putOnStage(src, { appear = true } = {}) {
   spinner.add(next.holder);
   if (appear) {
     play('place');
-    await animate(0.7, k => { next.dis.uDis.value = 1 - ease.out(k); });
+    await animate(0.5, k => { next.dis.uDis.value = 1 - ease.out(k); });
   }
   next.dis.uDis.value = 0;
   return next;
@@ -237,7 +237,7 @@ async function setLid(open) {
   lidOpen = open;
   play('lid');
   const from = lidK, light0 = from;
-  await animate((open ? 0.9 : 0.7) * Math.max(0.3, Math.abs(to - from)), k => {
+  await animate((open ? 0.6 : 0.5) * Math.max(0.3, Math.abs(to - from)), k => {
     const e = open ? ease.out(k) : ease.inOut(k);
     setLidK(from + (to - from) * e);
     box.userData.setInnerLight(light0 + (to - light0) * e);
@@ -255,7 +255,7 @@ async function moveCurrent(to) {
   const s0 = c.holder.getWorldScale(new THREE.Vector3()).x, s1 = to === 'box' ? c.fit : 1;
   scene.attach(c.holder);
   play('whoosh');
-  await animate(1.1, k => {
+  await animate(0.8, k => {
     const e = ease.inOut(k);
     c.holder.position.lerpVectors(fromWorld, toWorld, e);
     c.holder.position.y += Math.sin(e * Math.PI) * 0.9;
@@ -594,7 +594,7 @@ const endDrag = e => {
         c.where = 'box'; c.raised = false;
         play('place');
         S.busy = false;
-        setPhase(d.origin === 'box' ? S.phase : 'inside');
+        if (d.origin === 'box') setPhase(S.phase); else await shutLid();
       } else {
         // Dropped elsewhere: it lands on the stage (taken out of the box, or back where it was).
         const to = spinner.getWorldPosition(new THREE.Vector3()), from = c.holder.position.clone(), s0 = c.holder.scale.x;
@@ -963,6 +963,13 @@ function pickTarget() {
 }
 
 // Each step of the magic: one button press, or the same step done by hand (lid gesture, dragging).
+// Puts what stands in front of the box inside and shuts the lid: one tap instead of three.
+async function intoBox() {
+  if (!lidOpen) await setLid(true);
+  await moveCurrent('box');
+  await shutLid();
+}
+async function shutLid() { mistTarget = 0; await setLid(false); setPhase('closed'); }
 const LID_STEPS = {
   stage: async () => { await setLid(true); setPhase('stageOpen'); },
   stageOpen: async () => { await setLid(false); setPhase('stage'); },
@@ -1036,14 +1043,14 @@ function setPhase(p) {
     main = action('⬅️ Zpět ke krabici', async () => { if (S.current) setPhase(S.current.where === 'box' ? (lidOpen ? 'inside' : 'closed') : 'stage'); else showPicker(); });
     // what was just taken from the room can go straight into the box, away, or (a monster) free
     if (c && c.where === 'stage' && c.fromRoom) {
-      extra = [action('📦 Dát do krabice', async () => { await setLid(true); await moveCurrent('box'); setPhase('inside'); }),
+      extra = [action('📦 Dát do krabice', intoBox),
         action('🧹 Uklidit', tidyCurrent), freeBtn].filter(Boolean);
     }
     showMarkers(!!can || ozd > 0);
   } else if (p === 'stage') {
     title = `${c.name} čeká před krabicí`;
-    tip = 'Zatáhni víko prstem nahoru, nebo to rovnou přetáhni do krabice.';
-    main = action('📦 Otevřít krabici', LID_STEPS.stage);
+    tip = 'Klepni na tlačítko, nebo to prstem přetáhni do krabice.';
+    main = action('⬆️ Dát do krabice', intoBox);
     extra = careBtn ? [careBtn, readBtn, hideBtn, other, freeBtn] : [toRoom, other, freeBtn].filter(Boolean);
   } else if (p === 'care') {
     const m = moodOf(entry), want = neediest(entry.pece);
@@ -1055,7 +1062,7 @@ function setPhase(p) {
   } else if (p === 'stageOpen') {
     title = 'Krabice je otevřená!';
     tip = 'Přetáhni to prstem do krabice.';
-    main = action('⬆️ Dát do krabice', async () => { await moveCurrent('box'); setPhase('inside'); });
+    main = action('⬆️ Dát do krabice', intoBox);
     extra = [other];
   } else if (p === 'inside') {
     title = S.second ? `${c.name} a ${low1(S.second.name)} jsou v krabici` : `${c.name} je v krabici`;
@@ -1070,7 +1077,8 @@ function setPhase(p) {
     else if (c.living) $('zive-info').hidden = false;
     else { $('cil-volba').hidden = false; renderTargets(); }
     main = action('⚡ LASER! ⚡', fireLaser, 'laser');
-    extra = [action('📦 Otevřít', LID_STEPS.closed)];
+    extra = [action('⬇️ Vyndat ven', async () => { dropSecond(); await setLid(true); await moveCurrent('stage'); await setLid(false); setPhase('stage'); }),
+      !S.second && ['item', 'monster', 'combo'].includes(c.type) ? action('➕ Přidat druhou věc', async () => { setLid(true); showPicker('druha'); }) : null];
   } else if (p === 'done') {
     title = 'Hotovo! Co je uvnitř?';
     tip = 'Zatáhni víko nahoru!';
@@ -1177,11 +1185,16 @@ async function showPicker(mode = null) {
   if (S.shot === 'pokoj' || S.shot === 'care') S.shot = 'stage';
   showStep('vyber');
 }
-$('vyber-zpet').addEventListener('click', () => { pickerMode = null; if (pickerBack && S.current) setPhase(pickerBack); pickerBack = null; });
+$('vyber-zpet').addEventListener('click', () => {
+  pickerMode = null;
+  if (pickerBack === 'closed' && lidOpen) run(shutLid, { silent: true }); // the lid was opened for a second thing
+  else if (pickerBack && S.current) setPhase(pickerBack);
+  pickerBack = null;
+});
 
 async function choose(src) {
   if (S.busy) return;
-  if (pickerMode === 'druha' && S.current && S.current.where === 'box') { pickerMode = null; return addSecond(src); }
+  if (pickerMode === 'druha' && S.current && S.current.where === 'box') { pickerMode = null; await addSecond(src); return run(shutLid, { silent: true }); }
   pickerMode = null;
   S.schovka = null;
   S.busy = true;
@@ -1193,6 +1206,8 @@ async function choose(src) {
     await putOnStage(src);
   } finally { S.busy = false; }
   chosenTarget = { surprise: true };
+  // a toy or a photo from the picker goes straight into the box (monsters stay in front for care and reading)
+  if (src.type === 'item' || src.type === 'photo') { speak(S.current.name); return run(intoBox, { silent: true }); }
   setPhase('stage');
   const entry = albumEntry(S.current), want = entry && neediest(entry.pece);
   if (want) { const t = `${S.current.monster.name}: ${want.want}`; showBubble(t + ' ' + want.icon); speak(t); }
