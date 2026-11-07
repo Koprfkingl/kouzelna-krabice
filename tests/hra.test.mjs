@@ -33,6 +33,7 @@ const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=sw
 const page = await browser.newPage({ viewport: { width: 400, height: 860 } });
 const errors = [];
 page.on('pageerror', e => errors.push(e.message));
+page.on('dialog', d => d.accept()); // "Opravdu pustit…?" and similar questions
 page.on('console', m => { if (m.type() === 'error' && !/favicon|Failed to load resource/.test(m.text())) errors.push(m.text()); });
 const T = 300000;
 const kk = (fn, arg) => page.evaluate(fn, arg);
@@ -200,6 +201,20 @@ try {
     check(!!(await text('#den-odmena')).trim(), 'dárek ukazuje ozdobu');
     check(JSON.parse(await kk(() => localStorage.getItem('kk-kalendar') || '[]')).length === 1, 'den je v kalendáři');
     await shot('7-darek');
+  });
+
+  await run('Pustit na svobodu', async () => {
+    await kk(() => { document.getElementById('den').hidden = true; });
+    await albumMonster();
+    const seed = await kk(() => window.__kk.current().monster.seed);
+    const n0 = await kk(() => window.__kk.album().length);
+    const free = (await extras()).find(e => /svobodu/.test(e.t));
+    check(!!free, 'u příšerky je tlačítko Pustit na svobodu');
+    await free.b.click();
+    await page.waitForSelector('#krok-vyber:not([hidden])', { timeout: 60000 });
+    check(await kk(() => window.__kk.album().length) === n0 - 1, 'příšerka zmizela ze sbírky');
+    check(await kk(s => !JSON.stringify(JSON.parse(localStorage.getItem('kk-pokoj') || '{}').spots || {}).includes(String(s)), seed), 'v pokojíčku taky není');
+    await shot('8-svoboda');
   });
 } finally {
   await browser.close();

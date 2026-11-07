@@ -178,6 +178,23 @@ let mistTarget = 0, mist = 0;
 
 let zapping = false;
 
+// The monster on the stage (or just out of the box) flies off to freedom: out of the collection and the room.
+async function releaseCurrent() {
+  const c = S.current;
+  if (!c || c.type !== 'monster') return;
+  const name = c.monster.name;
+  if (!confirm(`Opravdu pustit příšerku ${name} na svobodu? Už se nevrátí.`)) return;
+  S.album = S.album.filter(a => a.seed !== c.monster.seed);
+  saveAlbum();
+  play('poof');
+  floatUp('💖', centerOf(c.obj).c, { n: 6, spread: 0.35 });
+  const t = `Ahoj, ${name}! Ať se ti daří!`;
+  showBubble('🕊️ ' + t); speak(t);
+  const inBox = c.where === 'box';
+  await removeCurrent();
+  if (inBox) { mistTarget = 0; await setLid(false); }
+  await showPicker();
+}
 async function removeCurrent(fast = false) {
   dropSecond();
   if (!S.current) return;
@@ -976,6 +993,7 @@ function setPhase(p) {
   const careBtn = entry && c.where === 'stage' ? action(`💗 Starat se o příšerku ${moodOf(entry).emoji}`, async () => setPhase('care')) : null;
   const other = action('🔄 Vybrat něco jiného', () => showPicker());
   const toRoom = c && c.where === 'stage' && srcOf(c) ? action('🏠 Dát do pokojíčku', async () => openRoom()) : null;
+  const freeBtn = c && c.type === 'monster' ? action('🕊️ Pustit na svobodu', releaseCurrent) : null;
   const hideBtn = entry && c.where === 'stage' ? action('🙈 Schovávaná', async () => startSchovka()) : null;
   if (p === 'schovka') {
     const s = S.schovka;
@@ -1004,7 +1022,7 @@ function setPhase(p) {
     title = `${c.name} čeká před krabicí`;
     tip = 'Zatáhni víko prstem nahoru, nebo to rovnou přetáhni do krabice.';
     main = action('📦 Otevřít krabici', LID_STEPS.stage);
-    extra = careBtn ? [careBtn, readBtn, hideBtn, other] : [toRoom, other].filter(Boolean);
+    extra = careBtn ? [careBtn, readBtn, hideBtn, other, freeBtn] : [toRoom, other, freeBtn].filter(Boolean);
   } else if (p === 'care') {
     const m = moodOf(entry), want = neediest(entry.pece);
     title = `${c.monster.name} ${m.text} ${m.emoji}`;
@@ -1040,6 +1058,7 @@ function setPhase(p) {
     tip = 'Můžeš to vytáhnout ven, nebo stáhnout víko a kouzlit znovu.';
     main = action('✨ Zavřít a proměnit znovu', LID_STEPS.result);
     extra = [action('⬇️ Vyndat ven', async () => { mistTarget = 0; await moveCurrent('stage'); await setLid(false); setPhase('stage'); }), other];
+    if (freeBtn) extra.push(freeBtn);
     if (c.type === 'monster' && S.album.length >= MAX_MONSTERS && !albumEntry(c)) extra.push(action('🕊️ Udělat místo ve sbírce', async () => { releasing = true; renderAlbum(); $('album').hidden = false; setPhase('result'); }));
   }
   $('akce-nadpis').textContent = title;
