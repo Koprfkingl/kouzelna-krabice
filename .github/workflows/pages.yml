@@ -18,7 +18,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts  # sharp (icons, model tools) is not needed here and its download sometimes fails
       - run: npm run vendor
       - run: touch www/.nojekyll
       - uses: peaceiris/actions-gh-pages@v4
