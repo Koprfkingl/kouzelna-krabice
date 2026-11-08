@@ -222,7 +222,15 @@ canvas.addEventListener('pointercancel', e => { if (roomPtr && e.pointerId === r
 function roomTap(e) {
   if (S.phase === 'schovka') { schovkaTap(e); return; }
   setPointer(e);
-  const targets = [...messTargets(), ...(markers.visible ? markers.children : []), ...Object.values(decor).map(c => c.holder), ...room.userData.frames.map(f => f.group), trophies,
+  // a mess (its broom sign is drawn on top of everything) wins over whatever stands in front of it
+  if (S.phase === 'pokoj') {
+    for (const h of raycaster.intersectObjects(messTargets(), true)) {
+      let o = h.object;
+      while (o && !o.userData.pokoj) o = o.parent;
+      if (o && o.userData.pokoj.kind === 'mess') { initAudio(); tapMess(o.userData.pokoj.id); return; }
+    }
+  }
+  const targets = [...(markers.visible ? markers.children : []), ...Object.values(decor).map(c => c.holder), ...room.userData.frames.map(f => f.group), trophies,
     room.userData.vitrina.group, ...room.children.filter(o => o.userData.pokoj && o.userData.pokoj.kind === 'kouzlo')];
   const hits = raycaster.intersectObjects(targets, true);
   for (const h of hits) {
