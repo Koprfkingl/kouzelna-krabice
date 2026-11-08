@@ -52,8 +52,14 @@ export function prepareDissolve(root) {
 export function joinDissolve(root, uniforms) {
   root.traverse(o => {
     if (!o.isMesh) return;
-    o.castShadow = true;
+    o.castShadow = !o.userData.outline;
     o.receiveShadow = true;
+    // the shadow is drawn with its own material: it must dissolve too, or a hidden monster still casts a round
+    // shadow (in hide and seek it gave away the monster under the bed)
+    if (o.castShadow) {
+      o.customDepthMaterial = addDissolve(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), uniforms);
+      o.customDistanceMaterial = addDissolve(new THREE.MeshDistanceMaterial(), uniforms);
+    }
     const fix = m => {
       if (m.userData.noDissolve) return m;
       const c = m.clone();

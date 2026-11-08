@@ -1,7 +1,8 @@
 // Checks every model of the game for the kind of glitches that are easy to miss by eye:
 // - a part that does not vanish with the rest (a hat floating in the air during hide and seek),
 // - a cartoon outline that does not move with the model (the parrot's black "wing shadows"),
-// - flat pictures (sprites) inside a model, which the dissolve effect cannot hide.
+// - flat pictures (sprites) inside a model, which the dissolve effect cannot hide,
+// - a shadow that stays on the floor when the thing is gone (a hidden monster under the bed).
 // Every thing (catalogue items, secret spells, gift decorations, a monster with each accessory, also one put on
 // later in the wardrobe) is built, rendered alone while fully dissolved (nothing may be left) and while whole
 // (something must be there), and its outlines are compared with the meshes they follow.
@@ -76,6 +77,7 @@ for (const t of list) {
     // outlines must follow their mesh: bones for skinned models, morph targets for shape-animated ones
     c.holder.traverse(o => {
       if (o.isSprite || o.isPoints) problems.push(`plochý obrázek ${o.type} ${o.name} nejde rozpustit`);
+      if (o.isMesh && o.castShadow && !(o.customDepthMaterial && o.customDepthMaterial.customProgramCacheKey().includes('dis'))) problems.push(`stín ${o.name || o.type} se nerozpouští`);
       if (!o.userData.outline) return;
       const m = o.parent;
       if (m.isSkinnedMesh && !(o.isSkinnedMesh && o.skeleton === m.skeleton)) problems.push(`obrys ${m.name} se nehýbe s kostmi`);

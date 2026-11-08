@@ -1,2 +1,2 @@
 // Vytvořeno skriptem scripts/vendor.mjs z package.json
-export const VERZE = '1.8.0';
+export const VERZE = '1.8.1';
