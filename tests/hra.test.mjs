@@ -186,6 +186,23 @@ try {
     await (await extras())[0].b.click(); await ready();
   });
 
+  await run('Nepořádek', async () => {
+    check((await kk(() => window.__kk.makeMess('louze')?.kind)) === 'louze', 'příšerka vylila hrnek');
+    check(await page.evaluate(() => document.getElementById('btn-pokoj').classList.contains('neporadek')), 'u pokojíčku je koště');
+    await kk(() => window.__kk.openRoom()); await ready(1500);
+    // the puddle can be anywhere in the room: tap its broom sign when on screen, otherwise go through the same handler
+    const pt = await kk(() => { const k = window.__kk; const s = k.room.children.find(o => o.isSprite && o.userData.pokoj?.kind === 'mess'); const v = s.position.clone().project(k.camera); return { id: s.userData.pokoj.id, x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; });
+    if (pt.x > 10 && pt.x < 390 && pt.y > 80 && pt.y < 600) await page.mouse.click(pt.x, pt.y);
+    else await kk(id => window.__kk.tapMess(id), pt.id);
+    await ready(1000);
+    check(await phase() === 'uklid', 'viník se přiznal');
+    const self = (await extras()).find(e => /sama/.test(e.t));
+    await self.b.click(); await page.waitForTimeout(800); await ready(1000);
+    check((await kk(() => window.__kk.messCount())) === 0 && await phase() === 'pokoj', 'je uklizeno');
+    await shot('7-neporadek');
+    await main();
+  });
+
   await run('Úkoly dne a dárek', async () => {
     // all tasks but one are done; the last one is finished by its own game event
     await kk(() => {

@@ -13,6 +13,7 @@ import { toonMaterial } from './vzhled.js';
 import { camera, canvas, room, scene, sparkles, spinner, texLoader } from './scena.js';
 import { emojiSprite } from './pece.js';
 import { schovkaTap } from './schovka.js';
+import { messTargets, tapMess } from './neporadek.js';
 import { fillVitrina, openVitrina, tapKouzlo } from './vitrina.js';
 import { dayEvent, den } from './den.js';
 
@@ -158,7 +159,7 @@ function showMarkers(on) {
   for (const s of room.userData.spots) {
     if (decor[s.id]) continue;
     // drawn on top of everything, so a star is never hidden behind furniture
-    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: markerTexture(), transparent: true, depthWrite: false, depthTest: false }));
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: markerTexture(), transparent: true, depthWrite: false, depthTest: false, fog: false }));
     m.renderOrder = 10;
     m.position.copy(s.pos).add(new THREE.Vector3(0, 0.2, 0.05));
     m.userData = { base: 0.42, y: m.position.y, pokoj: { kind: 'spot', id: s.id } };
@@ -221,7 +222,7 @@ canvas.addEventListener('pointercancel', e => { if (roomPtr && e.pointerId === r
 function roomTap(e) {
   if (S.phase === 'schovka') { schovkaTap(e); return; }
   setPointer(e);
-  const targets = [...(markers.visible ? markers.children : []), ...Object.values(decor).map(c => c.holder), ...room.userData.frames.map(f => f.group), trophies,
+  const targets = [...messTargets(), ...(markers.visible ? markers.children : []), ...Object.values(decor).map(c => c.holder), ...room.userData.frames.map(f => f.group), trophies,
     room.userData.vitrina.group, ...room.children.filter(o => o.userData.pokoj && o.userData.pokoj.kind === 'kouzlo')];
   const hits = raycaster.intersectObjects(targets, true);
   for (const h of hits) {
@@ -230,6 +231,7 @@ function roomTap(e) {
     if (!o) continue;
     const info = o.userData.pokoj;
     initAudio();
+    if (info.kind === 'mess') { if (S.phase === 'pokoj') tapMess(info.id); return; }
     if (info.kind === 'spot') {
       const spot = spotById(info.id);
       if (S.current && S.current.where === 'stage' && srcOf(S.current)) run(async () => { await placeInRoom(spot); }).then(() => setPhase('pokoj'));
@@ -415,5 +417,5 @@ async function putAwayOzdoba(c) {
   setPhase('pokoj');
 }
 
-export { bringToStage, buildTrophies, decor, openRoom, placeInRoom, pokoj, restoreRoom, roomPointerDown, roomTarget, savePokoj,
+export { bringToStage, buildTrophies, decor, settleInSpot, openRoom, placeInRoom, pokoj, restoreRoom, roomPointerDown, roomTarget, savePokoj,
   showMarkers, spotAtScreen, spotById, srcOf, takeFromRoom, unplacedOzdoby, updateDecor };

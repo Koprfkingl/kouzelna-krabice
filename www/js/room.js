@@ -149,6 +149,7 @@ function makeBed(BACK) {
   merged.castShadow = merged.receiveShadow = true;
   g.add(merged);
   g.userData.bed = true;
+  g.userData.duvet = duvet; g.userData.pillow = pillow; // monsters mess these up (neporadek.js)
   return g;
 }
 
@@ -367,7 +368,8 @@ export function makeRoom(tex) {
   // the pouf gets a spot on top once its model is in (see main.js)
   room.userData.props[1].spot = { id: 'taburet', size: 0.55 };
 
-  room.add(makeBed(BACK));
+  room.userData.bed = makeBed(BACK);
+  room.add(room.userData.bed);
   const trophies = makeTrophyShelf(BACK);
   room.add(trophies.group);
   room.userData.trophySlots = trophies.slots;

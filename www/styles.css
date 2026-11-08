@@ -225,3 +225,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 #den-stav { margin-left: 2px; }
 .dlazdice.tajne { background: #efe3ff; }
 .dlazdice.tajne .ikona { font-size: 26px; letter-spacing: 2px; }
+
+/* the room button when monsters made a mess */
+#btn-pokoj.neporadek::after { content: '🧹'; position: absolute; top: -6px; right: -6px; font-size: 20px; animation: chce 1.2s ease-in-out infinite; }
+#btn-pokoj { position: relative; }

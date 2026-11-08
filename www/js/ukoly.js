@@ -23,6 +23,7 @@ const PECE = [
   { id: 'pomazli', icon: '💗', text: 'Pomazli se s příšerkou', goal: 2, on: 'pece', need: 'mazleni' },
   { id: 'hraj', icon: '⚽', text: 'Pohraj si s příšerkou', goal: 1, on: 'pece', need: 'hra' },
 ];
+const UKLID = { id: 'uklid', icon: '🧹', text: 'Ukliď pokojíček', goal: 1, on: 'uklid' };
 const POKOJ = [
   { id: 'pokoj', icon: '🏠', text: 'Postav něco do pokojíčku', goal: 1, on: 'pokoj' },
 ];
@@ -45,7 +46,7 @@ export function loadDay(hasMonsters) {
   let den = store.get('kk-den', null);
   if (!den || den.date !== d) {
     const r = dayRand(d);
-    const tasks = [pick(CTENI, r), pick(kouzloTasks(), r), hasMonsters && r() < 0.8 ? pick(PECE, r) : POKOJ[0]];
+    const tasks = [pick(CTENI, r), pick(kouzloTasks(), r), hasMonsters && r() < 0.8 ? pick([...PECE, UKLID], r) : POKOJ[0]];
     den = { date: d, tasks: tasks.map(t => ({ ...t, n: 0 })), opened: false };
     store.set('kk-den', den);
   }
