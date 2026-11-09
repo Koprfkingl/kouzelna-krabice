@@ -97,7 +97,8 @@ export function makeMonster2(seed, opts = {}) {
   if (style === 'sliz') { baseColor.set(pick(SLIME)); if (opts.tint) baseColor.lerp(new THREE.Color(opts.tint), 0.35); }
   if (style === 'mracek') baseColor.lerp(new THREE.Color(0xffffff), 0.6);
   if (style === 'duch') baseColor.lerp(new THREE.Color(0xfaf6ff), 0.75);
-  if (opts.tint === 0xffd34d) baseColor.set(0xffc21f); // Laser Boost: really golden, whatever the kind
+  const gold = opts.tint === 0xffd34d; // Laser Boost: really golden, whatever the kind
+  if (gold) baseColor.set(0xffc21f);
 
   // ---- body shape ----
   const shape = pick(['ball', 'egg', 'pear', 'tall', 'wide', 'bean', 'lumpy', 'egg', 'pear']);
@@ -116,6 +117,7 @@ export function makeMonster2(seed, opts = {}) {
 
   let skin = pick(['fur', 'fur', 'furTips', 'velvet', 'jelly', 'spots', 'stripes', 'polka', 'scales', 'pearl', 'belly', 'stripes']);
   if (style !== 'normal') skin = { sliz: 'slime', krystal: 'crystal', mracek: 'velvet', duch: 'ghost' }[style];
+  if (gold) skin = 'gold'; // polished metal, no fur or patterns
   if (skin === 'jelly') bumps = Math.min(bumps, 0.02);
   const rn = [1 + r() * 2, 1 + r() * 2, 1 + r() * 2, r() * 6, r() * 6, r() * 6];
   // a crystal monster is cut into flat facets
@@ -139,7 +141,8 @@ export function makeMonster2(seed, opts = {}) {
   const bottom = geo.boundingBox.min.y;
 
   let bodyMat;
-  if (skin === 'slime') { bodyMat = new THREE.MeshPhysicalMaterial({ color: baseColor, roughness: 0.05, transparent: true, opacity: 0.9, clearcoat: 1, emissive: baseColor, emissiveIntensity: 0.12 }); bodyMat.userData.forceOutline = true; }
+  if (skin === 'gold') bodyMat = goldMaterial();
+  else if (skin === 'slime') { bodyMat = new THREE.MeshPhysicalMaterial({ color: baseColor, roughness: 0.05, transparent: true, opacity: 0.9, clearcoat: 1, emissive: baseColor, emissiveIntensity: 0.12 }); bodyMat.userData.forceOutline = true; }
   else if (skin === 'crystal') bodyMat = new THREE.MeshPhysicalMaterial({ color: baseColor.clone().multiplyScalar(0.85), roughness: 0.1, clearcoat: 1, emissive: baseColor, emissiveIntensity: 0.12, flatShading: true });
   else if (skin === 'ghost') bodyMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.6, emissive: baseColor, emissiveIntensity: 0.15, side: THREE.DoubleSide });
   else if (skin === 'jelly') bodyMat = new THREE.MeshPhysicalMaterial({ color: baseColor, roughness: 0.1, transparent: true, opacity: 0.82, clearcoat: 1, clearcoatRoughness: 0.05, emissive: baseColor, emissiveIntensity: 0.2 });
@@ -165,7 +168,7 @@ export function makeMonster2(seed, opts = {}) {
   monster.add(bodyGroup);
   addStyleParts(style, bodyGroup, geo, baseColor, accent, r, sx);
   const softMat = c => skin.startsWith('fur') ? new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }) : new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.45, clearcoat: 0.5 });
-  const limbColor = chance(0.3) ? accent : baseColor.clone().multiplyScalar(0.88);
+  const limbColor = chance(0.3) && !gold ? accent : baseColor.clone().multiplyScalar(0.88);
   const limbMat = softMat(limbColor);
 
   const ray = new THREE.Raycaster();
@@ -524,7 +527,43 @@ export function makeMonster2(seed, opts = {}) {
       if (tail) tail.rotation.y = 0.4 * Math.sin(t * 4 + phase);
     },
   };
+  // the golden monster: everything yellow on it (arms, legs, horns, drips…) is gold too, the eyes and mouth stay as they are
+  if (gold) {
+    const gm = bodyMat, h = {};
+    monster.traverse(o => {
+      const m = o.isMesh && !Array.isArray(o.material) ? o.material : null;
+      if (!m || m === gm || !m.color || m.map || !(m.isMeshStandardMaterial || m.isMeshPhongMaterial || m.isMeshLambertMaterial)) return;
+      m.color.getHSL(h);
+      if (h.h > 0.07 && h.h < 0.2 && h.s > 0.45 && h.l > 0.3) o.material = gm;
+    });
+  }
   return holder;
+}
+
+// Gold that looks like gold in the cartoon look too: a "matcap" (a picture of a shiny golden ball) gives it
+// dark amber edges, warm gold and a bright highlight, without needing reflections of the room.
+let goldTex = null;
+function goldMaterial() {
+  if (!goldTex) {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d');
+    let gr = g.createRadialGradient(128, 128, 10, 128, 128, 128);
+    [[0, '#ffe066'], [0.45, '#ffc21f'], [0.75, '#d98a00'], [0.92, '#8a4b00'], [1, '#5c3000']].forEach(([o, col]) => gr.addColorStop(o, col));
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    // a soft light from the upper left and a crisp highlight
+    gr = g.createRadialGradient(92, 84, 4, 92, 84, 70);
+    gr.addColorStop(0, 'rgba(255,255,235,1)'); gr.addColorStop(0.35, 'rgba(255,246,190,0.7)'); gr.addColorStop(1, 'rgba(255,240,170,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    // warm light bouncing from below
+    gr = g.createRadialGradient(160, 210, 4, 160, 210, 60);
+    gr.addColorStop(0, 'rgba(255,214,90,0.8)'); gr.addColorStop(1, 'rgba(255,214,90,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    goldTex = new THREE.CanvasTexture(c);
+    goldTex.colorSpace = THREE.SRGBColorSpace;
+  }
+  const m = new THREE.MeshMatcapMaterial({ matcap: goldTex });
+  m.userData.noToon = true; // keeps its shine in the cartoon look
+  return m;
 }
 
 // The extra parts of the generation 3 kinds (inside the body group, so they wobble with it).

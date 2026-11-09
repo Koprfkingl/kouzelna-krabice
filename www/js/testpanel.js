@@ -26,7 +26,7 @@ const ACTIONS = [
   ['🎒 Vrátit výlet hned', () => { if (!checkTrips(true)) say('Nikdo není na výletě. Pošli příšerku přes 🎒 u příšerky.'); }],
   ['👶 Miminko povyroste', () => {
     const c = S.current, a = c && c.type === 'monster' && S.album.find(x => x.seed === c.monster.seed);
-    if (!a || !a.baby) { say('Postav před krabici miminko ze sbírky (🍼).'); return; }
+    if (!a || !a.baby) { say('Tohle není miminko. Miminko vznikne, když dáš do krabice dvě příšerky naráz. Ve sbírce má 🍼.'); return; }
     const t = grow(c, a); saveAlbum(); say(t || `${a.name} povyrostla (${Math.round(a.rust * 100)} %).`);
   }],
   ['🎄 Advent: 1. prosince', () => setDate(`${new Date().getFullYear()}-12-01`)],

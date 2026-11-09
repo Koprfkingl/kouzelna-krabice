@@ -19,8 +19,10 @@ export function babyOpts(m) {
   if (e.baby) { o.baby = true; o.rust = e.rust || 0; }
   return o;
 }
-// a baby is smaller: 60 % when born, full size when grown up
-export const babySize = o => (o.baby ? 0.6 + 0.4 * o.rust : 1);
+// a baby is smaller: half size when born, full size when grown up (so the growing is easy to see)
+export const babySize = o => (o.baby ? 0.5 + 0.5 * o.rust : 1);
+// how many acts of care the baby has had out of the ten it needs
+export const careDone = e => Math.round((e.rust || 0) * 10);
 
 const colorOf = c => c.obj?.userData.monster?.color ?? c.monster.tint ?? 0xffffff;
 export const isPair = (a, b) => a?.type === 'monster' && b?.type === 'monster';
@@ -42,6 +44,7 @@ export function grow(c, entry) {
   entry.rust = Math.min(1, Math.round(((entry.rust || 0) + STEP) * 100) / 100);
   const after = babySize({ baby: true, rust: entry.rust });
   c.obj.scale.multiplyScalar(after / before);
-  if (entry.rust >= 1) { delete entry.baby; entry.dospela = true; return `Hurá, ${entry.name} vyrostla! Už to není miminko.`; }
-  return Math.round(entry.rust * 10) % 3 === 0 ? `${entry.name} zase trochu povyrostla!` : '';
+  if (entry.rust >= 1) { delete entry.baby; entry.dospela = true; return `Hurá, ${entry.name} vyrostla! Už to není miminko, je z ní velká příšerka.`; }
+  const n = careDone(entry);
+  return `${entry.name} povyrostla! Ještě ${10 - n} ${10 - n === 1 ? 'péče' : 'péčí'} a bude velká.`;
 }

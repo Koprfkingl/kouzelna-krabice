@@ -140,6 +140,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 .pece .dlazdice.chce { background: #ffe0ef; animation: chce 1.2s ease-in-out infinite; }
 @keyframes chce { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
 .lista { width: 86%; height: 9px; border-radius: 9px; background: #efe4f3; border: 2px solid var(--ink); overflow: hidden; }
+.rust-info { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 4px; font-weight: 700; color: var(--ink); }
 .lista i { display: block; height: 100%; background: linear-gradient(90deg, #ff6b8b, #ffd36e, #7be38a); background-size: 300% 100%; transition: width .5s; }
 #album-pustit { margin: 0 auto 12px; }
 #album.pousteni .dlazdice { background: #e3f6ff; }

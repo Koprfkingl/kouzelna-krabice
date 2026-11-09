@@ -7,7 +7,7 @@ import { choose, hideBubble, saveAlbum, setPhase, showBubble, speak, tile } from
 import { $, animate, centerOf, disposeObj, ease, store } from './util.js';
 import { camera, fill, key, scene, sparkles } from './scena.js';
 import { dayEvent } from './den.js';
-import { grow } from './mimi.js';
+import { careDone, grow } from './mimi.js';
 
 const NEEDS = [
   { id: 'jidlo', icon: '🍎', label: 'Nakrmit', rate: 9, want: 'Mám hlad!' },
@@ -225,7 +225,13 @@ async function doCare(need) {
     const say = await CARE[need.id](c, a);
     a.pece[need.id] = need.id === 'zdravi' ? 100 : Math.min(100, a.pece[need.id] + 45);
     const grew = grow(c, a); // a baby grows a little with every bit of care
-    if (grew) floatUp(a.baby ? '📏' : '🎉', centerOf(c.obj).c, { n: 3, spread: 0.6, rise: 0.8 });
+    if (grew) {
+      // a little stretch upwards so the growing is seen, and sparkles
+      play(a.baby ? 'place' : 'giggle');
+      floatUp(a.baby ? '📏' : '🎉', centerOf(c.obj).c, { n: a.baby ? 3 : 8, spread: 0.6, rise: 0.8 });
+      await animate(0.5, k => { const b = Math.sin(k * Math.PI) * 0.12; c.bounce.scale.set(1 - b * 0.4, 1 + b, 1 - b * 0.4); });
+      c.bounce.scale.set(1, 1, 1);
+    }
     saveAlbum();
     showBubble(grew ? say + ' ' + grew : say); speak(grew ? say + ' ' + grew : say);
     dayEvent('pece', { need: need.id });
@@ -251,6 +257,12 @@ function renderCare() {
   box_.innerHTML = '';
   if (!a) return;
   const want = neediest(a.pece);
+  if (a.baby) { // a baby: how far it has grown
+    const n = careDone(a), row = document.createElement('div');
+    row.className = 'rust-info';
+    row.innerHTML = `<span>🍼 Miminko roste: ${n} z 10</span><div class="lista"><i style="width:${Math.max(4, n * 10)}%;background-position:${n * 10}% 0"></i></div>`;
+    box_.append(row);
+  }
   for (const n of NEEDS) {
     const v = Math.round(a.pece[n.id] ?? 80);
     const t = tile({ label: n.label, icon: n.icon, onClick: () => doCare(n) });

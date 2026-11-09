@@ -112,15 +112,22 @@ try {
     const baby = await kk(() => { const c = window.__kk.current(), e = window.__kk.album().find(a => a.seed === c.monster.seed); return e && { baby: e.baby, rust: e.rust, style: e.style, rodice: e.rodice }; });
     check(!!baby && baby.baby === true && baby.rust === 0, 'miminko je ve sbírce a je malé');
     check(!!baby && baby.rodice.join() === 'Knoflík,Bublinka' && !!baby.style, 'miminko zná rodiče a zdědilo druh');
+    // real care: the care panel shows how far the baby has grown
+    if (!(await extras()).some(e => /Starat/.test(e.t))) { await kk(() => [...document.querySelectorAll('#akce-dalsi button')].find(b => /Vyndat/.test(b.textContent)).click()); await ready(1500); }
+    await kk(() => [...document.querySelectorAll('#akce-dalsi button')].find(b => /Starat/.test(b.textContent)).click()); await page.waitForTimeout(800);
+    check(/0 z 10/.test(await text('#pece .rust-info')), 'u péče je vidět, jak miminko roste');
+    await kk(() => document.querySelectorAll('#pece .dlazdice')[0].click());
+    await page.waitForFunction(() => /1 z 10/.test(document.querySelector('#pece .rust-info')?.textContent || ''), null, { timeout: 30000 }).catch(() => {});
+    check(/1 z 10/.test(await text('#pece .rust-info')), 'po péči miminko povyrostlo: ' + await text('#pece .rust-info'));
     const grown = await kk(async () => {
       const { grow } = await import('/js/mimi.js');
       const c = window.__kk.current(), e = window.__kk.album().find(a => a.seed === c.monster.seed), s0 = c.obj.scale.x;
       let last = '';
-      for (let i = 0; i < 10; i++) last = grow(c, e) || last;
+      for (let i = 0; i < 9; i++) last = grow(c, e) || last;
       return { last, ratio: c.obj.scale.x / s0, baby: !!e.baby };
     });
     check(!grown.baby && /vyrostla/.test(grown.last), 'po deseti péčích miminko vyrostlo');
-    check(Math.abs(grown.ratio - 1 / 0.6) < 0.01, 'a je větší');
+    check(Math.abs(grown.ratio - 1 / 0.55) < 0.01, 'a je větší');
     await shot('2a-miminko');
   });
 
