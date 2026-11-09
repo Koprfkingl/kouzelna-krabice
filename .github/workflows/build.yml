@@ -84,13 +84,14 @@ jobs:
           sed -i 's/^export const TEST_BUILD = false;/export const TEST_BUILD = true;/' www/js/testbuild.js
           grep -q 'TEST_BUILD = true' www/js/testbuild.js
           npx cap sync android
+          cp -r android/test-ikony/res/. android/app/src/main/res/   # the icon with a TEST ribbon
           sed -i 's|<string name="app_name">[^<]*</string>|<string name="app_name">Krabice TEST</string>|; s|<string name="title_activity_main">[^<]*</string>|<string name="title_activity_main">Krabice TEST</string>|' android/app/src/main/res/values/strings.xml
           cd android
           if [ "$APK_KIND" = release ]; then ./gradlew assembleRelease --no-daemon; else ./gradlew assembleDebug --no-daemon; fi
           cd ..
           mkdir -p out-test
           cp android/app/build/outputs/apk/$APK_KIND/app-$APK_KIND.apk "out-test/zkusebni-krabice-test-${VERSION_NAME}.apk"
-          git checkout -- www/js/testbuild.js android/app/src/main/res/values/strings.xml
+          git checkout -- www/js/testbuild.js android/app/src/main/res
       - uses: actions/upload-artifact@v4
         with:
           name: android-apk
