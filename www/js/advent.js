@@ -12,9 +12,10 @@ import { flashSyl, giveStar, readLower } from './citanka.js';
 import { pokoj, savePokoj } from './pokojicek.js';
 import { addBoost } from './boost.js';
 import { toonify } from './vzhled.js';
+import { testDate } from './testbuild.js';
 
 export function seasonDate() {
-  const d = params.get('datum');
+  const d = params.get('datum') || testDate();
   const t = d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + 'T12:00:00') : new Date();
   return isNaN(t) ? new Date() : t;
 }

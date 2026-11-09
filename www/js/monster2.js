@@ -97,6 +97,7 @@ export function makeMonster2(seed, opts = {}) {
   if (style === 'sliz') { baseColor.set(pick(SLIME)); if (opts.tint) baseColor.lerp(new THREE.Color(opts.tint), 0.35); }
   if (style === 'mracek') baseColor.lerp(new THREE.Color(0xffffff), 0.6);
   if (style === 'duch') baseColor.lerp(new THREE.Color(0xfaf6ff), 0.75);
+  if (opts.tint === 0xffd34d) baseColor.set(0xffc21f); // Laser Boost: really golden, whatever the kind
 
   // ---- body shape ----
   const shape = pick(['ball', 'egg', 'pear', 'tall', 'wide', 'bean', 'lumpy', 'egg', 'pear']);

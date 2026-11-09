@@ -9,8 +9,9 @@ import { flashSyl, readLower } from './citanka.js';
 import { pokoj, savePokoj } from './pokojicek.js';
 import { ozdobaById } from './ozdoby.js';
 import { addBoost } from './boost.js';
+import { isTest } from './testbuild.js';
 
-export const TRIP_MIN = 45; // minutes away
+export const TRIP_MIN = isTest ? 2 : 45; // minutes away (the test build: 2)
 const VYLETY = [
   { kam: 'k moři', obr: '🌊🏖️🐬', text: 'A-HOJ Z MO-ŘE! KOU-PA-LA JSEM SE A VI-DĚ-LA DEL-FÍ-NA.', suvenyr: 'musle' },
   { kam: 'do lesa', obr: '🌲🦔🍄', text: 'A-HOJ Z LE-SA! PO-TKA-LA JSEM JEŽ-KA. MĚL HOU-BU.', suvenyr: 'siska' },

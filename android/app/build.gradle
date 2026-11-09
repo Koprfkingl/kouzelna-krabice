@@ -10,6 +10,8 @@ android {
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "cz.koprfkingl.krabice"
+        // the test build ("Krabice TEST") installs next to the real game, with its own data
+        if (System.getenv("TEST_BUILD")) applicationIdSuffix ".test"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode((System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger())

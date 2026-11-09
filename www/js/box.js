@@ -172,7 +172,16 @@ export function makeBox(tex) {
   const up = new THREE.Vector3(0, 1, 0);
 
   let mistLevel = 0;
+  let gold = false; // Laser Boost: a golden laser, more and thicker beams
+  const PURPLE = { seam: seamMat.color.getHex(), lens: lensLight.color.getHex(), crystal: crystalMat.emissive.getHex(), glow: glowMat.color.getHex() };
   box.userData = {
+    setGold(on) {
+      gold = on;
+      seamMat.color.setHex(on ? 0xffd34d : PURPLE.seam);
+      lensLight.color.setHex(on ? 0xffc400 : PURPLE.lens);
+      crystalMat.emissive.setHex(on ? 0xffb300 : PURPLE.crystal);
+      glowMat.color.setHex(on ? 0xffe08a : PURPLE.glow);
+    },
     top: TOP,
     inside,
     insideFit: 0.62,
@@ -204,7 +213,7 @@ export function makeBox(tex) {
           b.userData.life -= dt;
           b.material.opacity = Math.max(0, b.userData.life * 6);
           if (b.userData.life <= 0) b.visible = false;
-        } else if (zapping && Math.random() < dt * 9) {
+        } else if (zapping && Math.random() < dt * (gold ? 40 : 9)) {
           // start at a random point of the seam and shoot outwards and up
           const side = Math.floor(Math.random() * 4);
           const r = Math.random() - 0.5;
@@ -213,6 +222,8 @@ export function makeBox(tex) {
           b.position.copy(p);
           b.quaternion.setFromUnitVectors(up, out);
           b.scale.set(1 + Math.random(), 1.2 + Math.random() * 1.8, 1 + Math.random());
+          b.material.color.setHex(gold ? (Math.random() < 0.5 ? 0xffd34d : 0xfff3b0) : beams.indexOf(b) % 2 ? 0xff70e8 : 0xb890ff);
+          if (gold) { b.scale.x *= 3; b.scale.z *= 3; b.scale.y *= 1.6; }
           b.userData.life = 0.12 + Math.random() * 0.22;
           b.visible = true;
         }
@@ -287,14 +298,14 @@ export function makeSparkles(count = 400) {
   const colors = [new THREE.Color(3, 1, 2.6), new THREE.Color(1.2, 1.6, 3), new THREE.Color(3, 2.6, 1), new THREE.Color(2.5, 2.5, 2.5)];
   for (let i = 0; i < count; i++) pos[i * 3 + 1] = -100;
   pts.userData = {
-    emit(at, n, speed = 1.5, spread = 0.1) {
+    emit(at, n, speed = 1.5, spread = 0.1, only = null) { // only: one colour (THREE.Color, may be brighter than 1)
       for (let k = 0; k < n; k++) {
         const i = next; next = (next + 1) % count;
         pos[i * 3] = at.x + (Math.random() - 0.5) * spread; pos[i * 3 + 1] = at.y + (Math.random() - 0.5) * spread; pos[i * 3 + 2] = at.z + (Math.random() - 0.5) * spread;
         const v = new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.9, Math.random() - 0.5).normalize().multiplyScalar(speed * (0.3 + Math.random()));
         vel[i * 3] = v.x; vel[i * 3 + 1] = v.y; vel[i * 3 + 2] = v.z;
         life[i] = 0.6 + Math.random() * 0.9;
-        const cc = colors[Math.floor(Math.random() * colors.length)];
+        const cc = only || colors[Math.floor(Math.random() * colors.length)];
         col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b;
       }
     },

@@ -28,6 +28,8 @@ import { dayEvent, den, openDen, renderDenBtn } from './den.js';
 import { babyFields, babyOf, babyOpts, babySize, isPair, styleOf } from './mimi.js';
 import { initAdvent, updateAdvent } from './advent.js';
 import { initDopisy } from './dopisy.js';
+import { initTest } from './testpanel.js';
+import { isTest } from './testbuild.js';
 import { RECEPTY, buildJidlo, describeJidlo, feedEveryone, openKucharka } from './vareni.js';
 import { initTapety, openTapety } from './tapety.js';
 import { initVylety, minutesLeft, onTrip, sendOnTrip, tripWhere } from './vylety.js';
@@ -298,8 +300,13 @@ async function zap(targetSrc) {
   const nextPromise = buildFor(targetSrc);
   zapping = false;
   play('charge');
-  await animate(1.0, k => {
-    box.userData.setCharge(k * k);
+  const gold = S.boost; // Laser Boost: golden laser, bigger shake, golden sparks and a flash
+  const GOLD = new THREE.Color(1.7, 1.05, 0.12);
+  box.userData.setGold(gold);
+  if (gold) goldFlash(false);
+  await animate(gold ? 1.4 : 1.0, k => {
+    box.userData.setCharge(k * k * (gold ? 1.6 : 1));
+    if (gold && Math.random() < 0.6) sparkles.userData.emit(box.localToWorld(new THREE.Vector3((Math.random() - 0.5) * 2.4, -0.2 + Math.random() * 0.4, 0.9)), 2, 0.4, 0.1, GOLD);
     box.userData.setSeam(k * 0.6);
     key.intensity = KEY - k * 0.8;
     box.position.x = (Math.random() - 0.5) * 0.012 * k;
@@ -309,18 +316,21 @@ async function zap(targetSrc) {
   const zapTimer = setInterval(() => play('zap'), 140);
   let swapped = false;
   await animate(2.2, k => {
-    box.userData.setCharge(1);
+    box.userData.setCharge(gold ? 1.6 : 1);
     box.userData.setSeam(0.6 + Math.random() * 0.4);
-    box.position.x = (Math.random() - 0.5) * 0.02;
-    box.position.z = -1.05 + (Math.random() - 0.5) * 0.01;
-    if (Math.random() < 0.5) {
+    const shake = gold ? 0.06 : 0.02;
+    box.position.x = (Math.random() - 0.5) * shake;
+    box.position.z = -1.05 + (Math.random() - 0.5) * shake * 0.5;
+    if (gold) box.position.y = Math.random() * 0.02;
+    if (gold || Math.random() < 0.5) {
       const p = box.localToWorld(new THREE.Vector3((Math.random() - 0.5) * 1.6, box.userData.top + 0.02, (Math.random() - 0.5) * 1.0));
-      sparkles.userData.emit(p, 3, 1.2, 0.05);
+      sparkles.userData.emit(p, gold ? 10 : 3, gold ? 2.4 : 1.2, 0.05, gold ? GOLD : null);
     }
     if (!swapped && k > 0.5) swapped = true;
   });
   clearInterval(zapTimer);
   zapping = false;
+  if (gold) { goldFlash(true); sparkles.userData.emit(box.localToWorld(new THREE.Vector3(0, box.userData.top + 0.1, 0)), 150, 3.2, 0.3, GOLD); play('poof'); }
   const next = await nextPromise;
   before.holder.removeFromParent();
   disposeObj(before.holder);
@@ -339,8 +349,17 @@ async function zap(targetSrc) {
     box.position.x *= 0.8;
   });
   box.position.set(0, 0, -1.05);
+  box.userData.setGold(false);
   play('thump');
   return { before, next };
+}
+
+// a golden flash over the whole screen (Laser Boost); big = the blinding one when the laser ends
+function goldFlash(big) {
+  const f = $('zlaty-zablesk');
+  f.className = '';
+  void f.offsetWidth;
+  f.className = big ? 'velky' : 'maly';
 }
 
 // Height above the box floor at which a thing stands on the rim of the open box.
@@ -1337,7 +1356,8 @@ async function checkForUpdate() {
     if (!r.ok) return;
     const rel = await r.json();
     const v = (rel.tag_name || '').replace(/^v/, '');
-    const apk = (rel.assets || []).find(a => a.name.endsWith('.apk'));
+    // the release has the normal app and the test app ("-test"): each takes its own
+    const apk = (rel.assets || []).find(a => a.name.endsWith('.apk') && a.name.includes('-test') === isTest);
     if (!apk || !newer(v, VERZE)) return;
     const b = $('btn-aktualizace');
     b.textContent = `🎁 Nová verze ${v}`;
@@ -1384,6 +1404,7 @@ async function start() {
   restoreRoom().then(restoreMess);
   initAdvent();
   initDopisy();
+  initTest();
   initTapety();
   initVylety();
   renderDenBtn();
