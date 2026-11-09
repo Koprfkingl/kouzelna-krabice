@@ -214,7 +214,7 @@ canvas.addEventListener('pointermove', e => {
 const roomUp = e => {
   if (!roomPtr || e.pointerId !== roomPtr.id) return;
   const p = roomPtr; roomPtr = null;
-  if (!p.moved && (S.phase === 'pokoj' || S.phase === 'schovka' || S.phase === 'vitrina') && !S.busy) roomTap(e);
+  if (!p.moved && (S.phase === 'pokoj' || S.phase === 'schovka' || S.phase === 'vitrina' || S.phase === 'uklid') && !S.busy) roomTap(e);
 };
 canvas.addEventListener('pointerup', roomUp);
 canvas.addEventListener('pointercancel', e => { if (roomPtr && e.pointerId === roomPtr.id) roomPtr = null; });
@@ -223,13 +223,14 @@ function roomTap(e) {
   if (S.phase === 'schovka') { schovkaTap(e); return; }
   setPointer(e);
   // a mess (its broom sign is drawn on top of everything) wins over whatever stands in front of it
-  if (S.phase === 'pokoj') {
+  if (S.phase === 'pokoj' || S.phase === 'uklid') {
     for (const h of raycaster.intersectObjects(messTargets(), true)) {
       let o = h.object;
       while (o && !o.userData.pokoj) o = o.parent;
       if (o && o.userData.pokoj.kind === 'mess') { initAudio(); tapMess(o.userData.pokoj.id); return; }
     }
   }
+  if (S.phase === 'uklid') return; // while tidying only the mess can be tapped
   const targets = [...(markers.visible ? markers.children : []), ...Object.values(decor).map(c => c.holder), ...room.userData.frames.map(f => f.group), trophies,
     room.userData.vitrina.group, ...room.children.filter(o => o.userData.pokoj && o.userData.pokoj.kind === 'kouzlo')];
   const hits = raycaster.intersectObjects(targets, true);

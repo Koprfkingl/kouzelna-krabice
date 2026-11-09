@@ -330,8 +330,25 @@ try {
     check(await phase() === 'uklid', 'viník se přiznal');
     const self = (await extras()).find(e => /sama/.test(e.t));
     await self.b.click(); await page.waitForTimeout(800); await ready(1000);
+    await kk(id => window.__kk.tapMess(id), pt.id); await page.waitForTimeout(1500); await ready(1000); // the child tidies the mug up
     check((await kk(() => window.__kk.messCount())) === 0 && await phase() === 'pokoj', 'je uklizeno');
+  });
+
+  await run('Velký nepořádek', async () => {
+    await kk(() => window.__kk.makeMess());
+    const n = await kk(() => window.__kk.messCount());
+    check(n >= 8, `v pokoji je velký nepořádek (${n} věcí)`);
+    await page.waitForTimeout(800);
     await shot('7-neporadek');
+    const ids = await kk(() => JSON.parse(localStorage.getItem('kk-neporadek')).list.map(m => m.id));
+    await kk(id => window.__kk.tapMess(id), ids[0]); await ready(1000);
+    check(/Zbývá/.test(await text('#akce-nadpis')), 'panel ukazuje, kolik věcí zbývá');
+    // the child tidies two things, then the monster is asked until she does the rest
+    await kk(() => [...document.querySelectorAll('#akce-dalsi button')].find(b => /sama/.test(b.textContent)).click()); await ready(600);
+    for (const id of ids.slice(1, 3)) { await kk(id => window.__kk.tapMess(id), id); await page.waitForTimeout(1200); }
+    check(await kk(() => window.__kk.messCount()) === n - 2, 'věci jde uklízet po jedné');
+    for (let i = 0; i < 6 && await kk(() => window.__kk.messCount()); i++) { await main(); await page.waitForTimeout(1500); await ready(1000); }
+    check(await kk(() => window.__kk.messCount()) === 0 && await phase() === 'pokoj', 'příšerka uklidila zbytek');
     await main();
   });
 
