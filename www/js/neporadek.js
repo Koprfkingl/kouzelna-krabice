@@ -142,6 +142,7 @@ function sign(pos) {
   s.renderOrder = 10;
   s.scale.setScalar(0.36);
   s.position.copy(pos).add(new THREE.Vector3(0, 0.7, 0.3));
+  s.position.x -= Math.sign(pos.x) * Math.min(0.35, Math.max(0, Math.abs(pos.x) - 0.9)); // a bit towards the middle, so it is not cut off at the edge of a phone
   s.userData.y = s.position.y;
   room.add(s);
   return s;

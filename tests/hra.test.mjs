@@ -101,8 +101,12 @@ try {
     await kk(async () => { const k = window.__kk; await k.choose({ type: 'monster', monster: { seed: 9001, name: 'Knoflík', tint: null, gen: 2 } }); });
     await ready();
     await main(); // the monster from the collection stands in front: into the box
+    await kk(() => { const k = window.__kk; k.setAlbum([...k.album(), { seed: 777, name: 'Bublinka', tint: null, gen: 3, thumb: '', pece: k.album()[0].pece }]); });
     await kk(() => [...document.querySelectorAll('#akce-dalsi button')].find(b => /druhou/.test(b.textContent)).click()); await page.waitForTimeout(600);
-    await kk(async () => { const k = window.__kk; await k.choose({ type: 'monster', monster: { seed: 777, name: 'Bublinka', tint: null, gen: 3 } }); });
+    // the picker offers the monsters of the collection right away
+    const tabsNow = await kk(() => [...document.querySelectorAll('#zalozky-zdroj .aktivni')].map(b => b.textContent).join());
+    check(/Příšerky/.test(tabsNow), 'k druhé příšerce nabídne výběr hned příšerky: ' + tabsNow);
+    await kk(() => [...document.querySelectorAll('#mrizka-zdroj .dlazdice')].find(b => /Bublinka/.test(b.textContent)).click());
     await ready();
     check(await phase() === 'closed', 'obě příšerky jsou v krabici');
     await watchBubble();
@@ -112,6 +116,12 @@ try {
     const baby = await kk(() => { const c = window.__kk.current(), e = window.__kk.album().find(a => a.seed === c.monster.seed); return e && { baby: e.baby, rust: e.rust, style: e.style, rodice: e.rodice }; });
     check(!!baby && baby.baby === true && baby.rust === 0, 'miminko je ve sbírce a je malé');
     check(!!baby && baby.rodice.join() === 'Knoflík,Bublinka' && !!baby.style, 'miminko zná rodiče a zdědilo druh');
+    const fam = await kk(async () => {
+      const { family } = await import('/js/mimi.js');
+      const c = window.__kk.current(), al = window.__kk.album(), kid = al.find(a => a.seed === c.monster.seed);
+      return { parent: family(kid, al.find(a => a.seed === 9001)), back: family(al.find(a => a.seed === 777), kid), sib: family(kid, { seed: 5, rodiceSeed: [9001, 42] }), stranger: family(kid, { seed: 6, name: 'Cizí' }) };
+    });
+    check(fam.parent && fam.back && fam.sib && !fam.stranger, 'rodiče, děti ani sourozenci spolu miminko mít nemůžou: ' + JSON.stringify(fam));
     // real care: the care panel shows how far the baby has grown
     if (!(await extras()).some(e => /Starat/.test(e.t))) { await kk(() => [...document.querySelectorAll('#akce-dalsi button')].find(b => /Vyndat/.test(b.textContent)).click()); await ready(1500); }
     await kk(() => [...document.querySelectorAll('#akce-dalsi button')].find(b => /Starat/.test(b.textContent)).click()); await page.waitForTimeout(800);
@@ -334,6 +344,7 @@ try {
     if (pt.x > 40 && pt.x < 360 && pt.y > 80 && pt.y < 600) await page.mouse.click(pt.x, pt.y);
     else await kk(id => window.__kk.tapMess(id), pt.id);
     await ready(1000);
+    await page.waitForFunction(() => window.__kk.phase() === 'uklid', null, { timeout: 15000 }).catch(() => {}); // the culprit comes over first
     check(await phase() === 'uklid', 'viník se přiznal');
     const self = (await extras()).find(e => /sama/.test(e.t));
     await self.b.click(); await page.waitForTimeout(800); await ready(1000);

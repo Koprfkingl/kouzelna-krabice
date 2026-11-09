@@ -31,11 +31,21 @@ export function babyOf(a, b) {
   const seed = (Math.random() * 2 ** 31) >>> 0 || 11;
   const tint = new THREE.Color(colorOf(a)).lerp(new THREE.Color(colorOf(b)), 0.5).getHex();
   const style = styleOf(Math.random() < 0.5 ? a.monster : b.monster);
-  return { seed, name: monsterName(rng(seed)), tint, gen: 3, style, baby: true, rust: 0, rodice: [a.monster.name, b.monster.name] };
+  return { seed, name: monsterName(rng(seed)), tint, gen: 3, style, baby: true, rust: 0, rodice: [a.monster.name, b.monster.name], rodiceSeed: [a.monster.seed, b.monster.seed] };
+}
+
+// parent and child, or brothers and sisters: a family has no babies together
+export function family(m1, m2) {
+  const e1 = entryOf(m1) || m1, e2 = entryOf(m2) || m2;
+  const parents = e => [...(e.rodiceSeed || []), ...(e.rodice || [])];
+  const isParent = (kid, p) => parents(kid).some(x => x === p.seed || x === p.name);
+  if (isParent(e1, e2) || isParent(e2, e1)) return true;
+  const p1 = e1.rodiceSeed || [], p2 = e2.rodiceSeed || [];
+  return p1.some(x => p2.includes(x)) || (e1.rodice || []).some(x => (e2.rodice || []).includes(x));
 }
 
 // the extra fields kept in the album for a baby
-export const babyFields = m => (m.baby ? { style: m.style, baby: true, rust: 0, rodice: m.rodice } : m.style ? { style: m.style } : {});
+export const babyFields = m => (m.baby ? { style: m.style, baby: true, rust: 0, rodice: m.rodice, rodiceSeed: m.rodiceSeed } : m.style ? { style: m.style } : {});
 
 // one act of care: the baby grows a little. Returns words for the bubble when something worth saying happened.
 export function grow(c, entry) {
