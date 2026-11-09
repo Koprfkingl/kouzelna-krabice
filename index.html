@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Kouzelná krabice</title>
+<link rel="stylesheet" href="styles.css">
+<script src="tts-android.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three/build/three.module.min.js",
+  "three/addons/": "./vendor/three/examples/jsm/"
+} }
+</script>
+  <link rel="icon" type="image/png" href="ikona.png">
+  <link rel="apple-touch-icon" href="ikona.png">
+</head>
+<body>
+<canvas id="scena"></canvas>
+
+<div id="nacitani">
+  <div class="logo">✨📦✨</div>
+  <h1>Kouzelná krabice</h1>
+  <div class="bar"><div id="nacitani-bar"></div></div>
+  <button id="start" class="velke" hidden>▶ Hrát</button>
+  <div id="verze" class="verze"></div>
+</div>
+
+<div id="zlaty-zablesk"></div>
+<header id="horni">
+  <div class="skupina">
+    <button id="btn-album" class="kulate" aria-label="Sbírka příšerek">📖<span id="album-pocet">0</span></button>
+    <button id="btn-pokoj" class="kulate" aria-label="Můj pokojíček">🏠</button>
+    <button id="btn-test" class="kulate" aria-label="Zkoušení" hidden>🧪</button>
+  </div>
+  <div id="titulek">Kouzelná krabice</div>
+  <div class="skupina">
+    <button id="btn-dopis" class="kulate" aria-label="Dopis od příšerky" hidden>✉️</button>
+    <button id="btn-advent" class="kulate" aria-label="Adventní kalendář" hidden>🎄</button>
+    <button id="btn-den" class="kulate" aria-label="Úkoly dne">📅<span id="den-stav"></span></button>
+    <button id="btn-zvuk" class="kulate" aria-label="Zvuk">🔊</button>
+  </div>
+</header>
+<button id="btn-aktualizace" class="aktualizace" hidden></button>
+
+<div id="bublina" hidden></div>
+
+<section id="panel">
+  <!-- Krok 1: co dát před krabici -->
+  <div id="krok-vyber" class="krok">
+    <h2 id="vyber-nadpis">Co dáme před krabici?</h2>
+    <nav class="zalozky" id="zalozky-zdroj"></nav>
+    <div class="mrizka" id="mrizka-zdroj"></div>
+    <button id="vyber-zpet" class="druhe-tl zpet-tl" hidden>⬅️ Zpět, nic neměnit</button>
+  </div>
+
+  <!-- Čtení s příšerkou -->
+  <div id="krok-cteni" class="krok" hidden>
+    <div id="cteni-hodnost" class="hodnost"></div>
+    <nav class="zalozky" id="zalozky-cteni"></nav>
+    <div class="radek cteni-info"><span id="cteni-hvezdy">⭐ 0</span><span id="cteni-ukol"></span><button id="cteni-prehled" class="male" aria-label="Přehled pro rodiče">📊</button><button id="cteni-velikost" class="male">abc</button></div>
+    <div id="cteni-karta" class="vzkaz"></div>
+    <div class="mrizka tri volby" id="cteni-volby"></div>
+    <div class="radek tlacitka">
+      <button id="cteni-napoveda" class="druhe-tl">🔊 Přečti mi to</button>
+      <button id="cteni-zpet" class="druhe-tl">⬅️ Hotovo</button>
+    </div>
+  </div>
+
+  <!-- Krok 2: jednotlivé kroky kouzla, každý jedním tlačítkem -->
+  <div id="krok-akce" class="krok" hidden>
+    <h2 id="akce-nadpis"></h2>
+    <p id="akce-tip" class="tip" hidden></p>
+    <p id="zive-info" hidden>Živé bytosti krabice promění na <b>roztomilou příšerku</b>! Jakou? To je překvapení…</p>
+    <div id="cil-volba" hidden>
+      <nav class="zalozky" id="zalozky-cil"></nav>
+      <div class="mrizka" id="mrizka-cil"></div>
+    </div>
+    <div id="pece" class="mrizka tri pece" hidden></div>
+    <div id="schovka-karta" class="vzkaz" hidden></div>
+    <button id="btn-hlavni" class="velke hlavni"></button>
+    <div class="radek tlacitka" id="akce-dalsi"></div>
+  </div>
+</section>
+
+<div id="album" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2 id="album-nadpis">Moje příšerky <span id="album-stav" class="verze"></span></h2><button id="album-zavrit" class="kulate">✕</button></div>
+    <nav class="zalozky" id="album-zalozky">
+      <button data-tab="sbirka" class="aktivni"><span class="ikona">👾</span>Příšerky</button>
+      <button data-tab="kniha"><span class="ikona">📕</span>Kniha kouzel</button>
+    </nav>
+    <div id="sbirka">
+      <p class="napoveda" id="album-napoveda">Klepni na příšerku a postav ji před krabici. Můžeš se o ni starat!</p>
+      <div class="radek tlacitka"><button id="album-pustit" class="male">🕊️ Pustit příšerku na svobodu</button></div>
+      <div class="mrizka" id="album-mrizka"></div>
+    </div>
+    <div id="kniha" hidden>
+      <p class="napoveda" id="kniha-napoveda"></p>
+      <div class="mrizka" id="kniha-mrizka"></div>
+    </div>
+  </div>
+</div>
+
+<div id="foto-dotaz" class="okno" hidden>
+  <div class="okno-obsah">
+    <img id="foto-nahled" alt="">
+    <h2 id="foto-otazka">Co jsi vyfotila?</h2>
+    <div class="mrizka tri">
+      <button class="dlazdice" data-druh="zive"><span class="ikona">🐾</span>Něco živého</button>
+      <button class="dlazdice" data-druh="veci"><span class="ikona">🧸</span>Věc</button>
+      <button class="dlazdice" data-druh="stroje"><span class="ikona">⚙️</span>Stroj</button>
+    </div>
+    <button id="foto-zrusit" class="male">Zrušit</button>
+  </div>
+</div>
+
+<div id="aktualizace" class="okno" hidden>
+  <div class="okno-obsah">
+    <h2>🎁 Nová verze</h2>
+    <p id="aktualizace-text" class="napoveda"></p>
+    <div class="radek tlacitka">
+      <button id="aktualizace-ano" class="velke">Stáhnout</button>
+      <button id="aktualizace-ne" class="velke druhe">Teď ne</button>
+    </div>
+  </div>
+</div>
+
+<div id="satnik" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>👗 Šatník <span id="satnik-hvezdy" class="verze"></span></h2><button id="satnik-zavrit" class="kulate">✕</button></div>
+    <p class="napoveda">Za hvězdičky ze čtení se odemykají doplňky. Klepni a příšerka si je obleče.</p>
+    <div class="mrizka" id="satnik-mrizka"></div>
+  </div>
+</div>
+
+<div id="prehled" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>📊 Jak jde čtení</h2><button id="prehled-zavrit" class="kulate">✕</button></div>
+    <div id="prehled-obsah" class="prehled"></div>
+    <div class="radek tlacitka"><button id="prehled-jmeno" class="male">✏️ Změnit jméno hráče</button></div>
+  </div>
+</div>
+
+<div id="den" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>📅 Úkoly dne</h2><button id="den-zavrit" class="kulate">✕</button></div>
+    <div id="den-kalendar" class="kalendar"></div>
+    <div id="den-ukoly" class="ukoly"></div>
+    <button id="den-truhla" class="truhla"></button>
+    <p id="den-odmena" class="napoveda" hidden></p>
+  </div>
+</div>
+
+<div id="test" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>🧪 Zkoušení</h2><button id="test-zavrit" class="kulate">✕</button></div>
+    <p id="test-stav" class="dopis-napoveda"></p>
+    <div id="test-akce" class="test-akce"></div>
+  </div>
+</div>
+
+<div id="kucharka" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2 id="kucharka-nazev">Recept</h2><button id="kucharka-zavrit" class="kulate">✕</button></div>
+    <div class="dopis-papir"><div id="kucharka-text" class="dopis-text recept-text"></div></div>
+    <p id="kucharka-napoveda" class="dopis-napoveda"></p>
+    <div id="kucharka-miska" class="kucharka-miska">🥣</div>
+    <div id="kucharka-suroviny" class="kucharka-suroviny"></div>
+  </div>
+</div>
+
+<div id="tapety" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>🎨 Tapety a koberce</h2><button id="tapety-zavrit" class="kulate">✕</button></div>
+    <p id="tapety-stav" class="dopis-napoveda"></p>
+    <h3 class="tapety-nadpis">Tapeta</h3>
+    <div id="tapety-zed" class="tapety-mrizka"></div>
+    <h3 class="tapety-nadpis">Koberec</h3>
+    <div id="tapety-koberec" class="tapety-mrizka"></div>
+  </div>
+</div>
+
+<div id="pohlednice" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>🎒 Pohlednice z výletu</h2></div>
+    <div class="pohlednice">
+      <div id="pohlednice-obr" class="pohlednice-obr"></div>
+      <div id="pohlednice-text" class="dopis-text"></div>
+      <p id="pohlednice-podpis" class="dopis-podpis"></p>
+    </div>
+    <p id="pohlednice-dar" class="dopis-napoveda"></p>
+    <button id="pohlednice-ok" class="velke">Super! 💜</button>
+  </div>
+</div>
+
+<div id="dopis" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>✉️ Dopis</h2><button id="dopis-zavrit" class="kulate">✕</button></div>
+    <div class="dopis-papir">
+      <p id="dopis-hlava" class="dopis-hlava"></p>
+      <div id="dopis-text" class="dopis-text"></div>
+      <p id="dopis-podpis" class="dopis-podpis"></p>
+    </div>
+    <p id="dopis-napoveda" class="dopis-napoveda"></p>
+    <div id="dopis-moznosti" class="dopis-moznosti"></div>
+    <div id="dopis-skladani" hidden>
+      <div id="dopis-slovo" class="dopis-slovo"></div>
+      <div id="dopis-pismena" class="dopis-pismena"></div>
+    </div>
+  </div>
+</div>
+
+<div id="advent" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>🎄 Adventní kalendář</h2><button id="advent-zavrit" class="kulate">✕</button></div>
+    <div class="permice">
+      <div class="permice-nadpis"><b>🎟️ Sezónní permice</b> <span id="permice-stav"></span> <small>zdarma 😉</small></div>
+      <div class="permice-lista"><div id="permice-pruh"></div></div>
+      <div id="permice-odmeny" class="permice-odmeny"></div>
+    </div>
+    <div id="advent-vzkaz" class="advent-vzkaz" hidden></div>
+    <div id="advent-mrizka" class="advent-mrizka"></div>
+  </div>
+</div>
+
+<div id="ramecek" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2 id="ramecek-nadpis">🖼️ Co dáme do rámečku?</h2><button id="ramecek-zavrit" class="kulate">✕</button></div>
+    <div class="mrizka" id="ramecek-mrizka"></div>
+  </div>
+</div>
+
+<div id="jmeno" class="okno" hidden>
+  <div class="okno-obsah">
+    <h2>👋 Ahoj! Jak se jmenuješ?</h2>
+    <input id="jmeno-vstup" type="text" maxlength="20" autocomplete="off" placeholder="Maruška">
+    <div class="mrizka tri dve">
+      <button class="dlazdice" data-kluk="0"><span class="ikona">👧</span>Holka</button>
+      <button class="dlazdice" data-kluk="1"><span class="ikona">👦</span>Kluk</button>
+    </div>
+    <div class="radek tlacitka">
+      <button id="jmeno-ok" class="velke">✨ Hotovo</button>
+      <button id="jmeno-preskocit" class="male">Přeskočit</button>
+    </div>
+  </div>
+</div>
+
+<input id="foto-vstup" type="file" accept="image/*" capture="environment" hidden>
+<div id="blesk"></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
