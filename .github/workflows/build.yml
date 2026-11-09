@@ -89,7 +89,7 @@ jobs:
           if [ "$APK_KIND" = release ]; then ./gradlew assembleRelease --no-daemon; else ./gradlew assembleDebug --no-daemon; fi
           cd ..
           mkdir -p out-test
-          cp android/app/build/outputs/apk/$APK_KIND/app-$APK_KIND.apk "out-test/kouzelna-krabice-${VERSION_NAME}-test.apk"
+          cp android/app/build/outputs/apk/$APK_KIND/app-$APK_KIND.apk "out-test/zkusebni-krabice-test-${VERSION_NAME}.apk"
           git checkout -- www/js/testbuild.js android/app/src/main/res/values/strings.xml
       - uses: actions/upload-artifact@v4
         with:
@@ -110,8 +110,8 @@ jobs:
           files: out/*.apk
           body: |
             Stáhni `.apk` do telefonu s Androidem a otevři ho. Poprvé je potřeba povolit instalaci z neznámých zdrojů.
-            Soubor končící na `-test.apk` je zkušební verze pro rodiče („Krabice TEST“, panel 🧪). Nainstaluje se vedle hry a má vlastní data.
-      # The test app goes up after the real one: apps 2.0.0 and older take the first .apk of the release.
+            Soubor `zkusebni-krabice-test-….apk` je zkušební verze pro rodiče („Krabice TEST“, panel 🧪). Nainstaluje se vedle hry a má vlastní data.
+      # The test app goes up after the real one and its name sorts after it: apps 2.0.0 and older take the first .apk of the release.
       - name: Vydání (testovací verze)
         if: env.NEW_RELEASE == 'true' || github.event_name != 'push'
         uses: softprops/action-gh-release@v2

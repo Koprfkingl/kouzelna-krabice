@@ -34,7 +34,7 @@ Hra jde hrát i v prohlížeči: https://koprfkingl.github.io/kouzelna-krabice/ 
 
 ## Ke stažení
 
-Vedle hry je v každém vydání i **zkušební verze** `kouzelna-krabice-<verze>-test.apk` („Krabice TEST“). Nainstaluje se jako samostatná aplikace s vlastními daty, takže Maruščina sbírka zůstane nedotčená. Tlačítko 🧪 nahoře umí přidat hvězdičky a Laser Boosty, hned udělat nepořádek, poslat dopis, vrátit příšerku z výletu, nechat miminko povyrůst a přepnout datum na advent (1. prosince, další den, Štědrý den). Výlety v ní trvají jen 2 minuty. V prohlížeči totéž zapne adresa s `?test`.
+Vedle hry je v každém vydání i **zkušební verze** `zkusebni-krabice-test-<verze>.apk` („Krabice TEST“). Nainstaluje se jako samostatná aplikace s vlastními daty, takže Maruščina sbírka zůstane nedotčená. Tlačítko 🧪 nahoře umí přidat hvězdičky a Laser Boosty, hned udělat nepořádek, poslat dopis, vrátit příšerku z výletu, nechat miminko povyrůst a přepnout datum na advent (1. prosince, další den, Štědrý den). Výlety v ní trvají jen 2 minuty. V prohlížeči totéž zapne adresa s `?test`.
 
 V sekci **Releases** je `kouzelna-krabice-<verze>.apk`. Stáhni ho do telefonu s Androidem a otevři. Poprvé je potřeba povolit instalaci z neznámých zdrojů. Pro mluvení je dobré mít v nastavení převodu textu na řeč nainstalovanou češtinu.
 
