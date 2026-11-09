@@ -25,6 +25,7 @@ import { buildTrophies, decor, openRoom, placeInRoom, restoreRoom, roomPointerDo
 import { addSecond, dropSecond, kniha, renderAlbumTabs } from './kniha.js';
 import { endSchovka, readSchovka, renderSchovkaCard, startSchovka } from './schovka.js';
 import { dayEvent, den, openDen, renderDenBtn } from './den.js';
+import { monsterStyle } from './monster2.js';
 import { moveFoch, vitrinaTarget, vitrinaTip, vitrinaTitle } from './vitrina.js';
 import { makeMess, messCount, restoreMess, tapMess, uklidPanel, updateMess } from './neporadek.js';
 
@@ -151,7 +152,8 @@ function describe(src) {
     return { living: k === 'zive', name, acc, g: k === 'veci' ? 'f' : 'm' };
   }
   const n = src.monster.name;
-  return { living: true, name: `Příšerka ${n}`, acc: `příšerku ${n}`, g: 'f' };
+  const kind = { sliz: 'slizovou ', krystal: 'krystalovou ', mracek: 'obláčkovou ', duch: 'strašidýlkovou ' }[monsterStyle(src.monster.seed, src.monster.gen || 1)] || '';
+  return { living: true, name: `Příšerka ${n}`, acc: `${kind}příšerku ${n}`, g: 'f' };
 }
 
 // A built thing: holder (moved between stage and box) > bounce (hops when tapped) > obj > model.
@@ -950,7 +952,7 @@ function renderTargets() {
 
 function newMonsterSpec(tint) {
   const seed = (Math.random() * 2 ** 31) >>> 0 || 7;
-  return { seed, name: monsterName(rng(seed)), tint: tint || null, gen: 2 };
+  return { seed, name: monsterName(rng(seed)), tint: tint || null, gen: 3 };
 }
 function randomTarget() {
   const pool = ITEMS.filter(i => !(S.current.type === 'item' && S.current.item.id === i.id));

@@ -115,7 +115,7 @@ export function makeFur(geometry, color, len, shells, density) {
 }
 
 export function makeMonster(seed, opts = {}) {
-  if (opts.gen === 2) return makeMonster2(seed, opts);
+  if (opts.gen >= 2) return makeMonster2(seed, opts);
   return makeMonsterV1(seed, opts);
 }
 

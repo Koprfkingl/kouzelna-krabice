@@ -6,6 +6,15 @@ import { rng, canvasTex, makeFur, vnoise } from './monster.js';
 
 const COLORS = [0xff8fb8, 0x8fd3ff, 0xa8f0a0, 0xffd36e, 0xc7a2ff, 0xff9f7a, 0x7ff0e0, 0xffb3e6, 0x9fb8ff, 0xf6f08a,
   0x5fd4a8, 0x4fc3f7, 0xb388ff, 0xff7aa8, 0xffc04d, 0x9ee35a, 0x5f8dff, 0xff6f61, 0x48d1cc, 0xe57bff, 0x9be7ff, 0xffe0a3];
+// Generation 3 adds whole new kinds of monsters (generation 2 monsters in the album look as they did).
+const STYLES = ['sliz', 'sliz', 'sliz', 'krystal', 'mracek', 'duch', 'normal', 'normal'];
+const SLIME = [0x9cff57, 0x6dff9e, 0xff6ec7, 0xb46bff, 0x5ff5e0, 0xffe14d, 0xff8a3d, 0x7fd0ff];
+export const STYLE_NAMES = { sliz: 'slizová', krystal: 'krystalová', mracek: 'obláčková', duch: 'strašidýlková', normal: '' };
+export function monsterStyle(seed, gen) {
+  if (gen < 3) return 'normal';
+  const r = rng((Math.imul(seed ^ 0x2545f491, 2654435761) >>> 0) || 1); r(); r(); // mixed well, so neighbouring seeds differ
+  return STYLES[Math.floor(r() * STYLES.length)];
+}
 const IRIS = [0x3a8dde, 0x5bbf5a, 0x8b5a2b, 0xb05fe0, 0xe08a2b, 0x20b2aa, 0xe0407a, 0xd4a017, 0x1e90ff, 0x7b3fe4];
 
 function eyeTex(iris, slit, rand) {
@@ -84,6 +93,10 @@ export function makeMonster2(seed, opts = {}) {
   const hsl = {}; baseColor.getHSL(hsl);
   baseColor.setHSL(hsl.h, Math.max(0.5, hsl.s), Math.min(0.7, Math.max(0.48, hsl.l)));
   const accent = new THREE.Color().setHSL((hsl.h + pick([0.08, 0.5, 0.33, 0.66, 0.15]) + r() * 0.06) % 1, 0.75, chance(0.5) ? 0.4 : 0.66);
+  const style = monsterStyle(seed, opts.gen || 2);
+  if (style === 'sliz') { baseColor.set(pick(SLIME)); if (opts.tint) baseColor.lerp(new THREE.Color(opts.tint), 0.35); }
+  if (style === 'mracek') baseColor.lerp(new THREE.Color(0xffffff), 0.6);
+  if (style === 'duch') baseColor.lerp(new THREE.Color(0xfaf6ff), 0.75);
 
   // ---- body shape ----
   const shape = pick(['ball', 'egg', 'pear', 'tall', 'wide', 'bean', 'lumpy', 'egg', 'pear']);
@@ -96,18 +109,28 @@ export function makeMonster2(seed, opts = {}) {
   if (shape === 'bean') { sx = 0.95; sy = 1.3; bend = 0.25; }
   if (shape === 'lumpy') { sx = 1.05; sy = 1.1; bumps = 0.11; }
   sx *= 0.92 + r() * 0.16; sy *= 0.92 + r() * 0.16;
+  if (style === 'sliz') { sx = 1.2 + r() * 0.15; sy = 0.9 + r() * 0.15; sz = 1.0; pear = 0.42; bumps = 0.03; bend = 0; }
+  if (style === 'mracek') { sx = 1.2; sy = 0.95; sz = 0.95; pear = 0; bumps = 0; bend = 0; }
+  if (style === 'duch') { sx = 0.85; sy = 1.25; sz = 0.85; pear = -0.08; bumps = 0; bend = 0; }
 
-  const skin = pick(['fur', 'fur', 'furTips', 'velvet', 'jelly', 'spots', 'stripes', 'polka', 'scales', 'pearl', 'belly', 'stripes']);
+  let skin = pick(['fur', 'fur', 'furTips', 'velvet', 'jelly', 'spots', 'stripes', 'polka', 'scales', 'pearl', 'belly', 'stripes']);
+  if (style !== 'normal') skin = { sliz: 'slime', krystal: 'crystal', mracek: 'velvet', duch: 'ghost' }[style];
   if (skin === 'jelly') bumps = Math.min(bumps, 0.02);
   const rn = [1 + r() * 2, 1 + r() * 2, 1 + r() * 2, r() * 6, r() * 6, r() * 6];
-  const geo = new THREE.SphereGeometry(0.5, 72, 48);
+  // a crystal monster is cut into flat facets
+  const geo = style === 'krystal' ? new THREE.IcosahedronGeometry(0.5, 1) : new THREE.SphereGeometry(0.5, 72, 48);
   const pos = geo.attributes.position, v = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
     const k = 1 + pear * (-v.y * 2) + bumps * vnoise(v.x * 4, v.y * 4, v.z * 4, rn);
     v.set(v.x * sx * k, v.y * sy, v.z * sz * k);
     v.z += bend * (v.y * v.y * 2 - 0.2);
-    if (v.y < -0.38 * sy) v.y = -0.38 * sy + (v.y + 0.38 * sy) * 0.3; // flat-ish bottom
+    if (style === 'duch' && v.y < -0.05) {
+      // a ghost: the bottom flares out into a wavy sheet
+      const d = -0.05 - v.y, a = Math.atan2(v.z, v.x);
+      v.x *= 1 + d * 1.1; v.z *= 1 + d * 1.1;
+      v.y -= d * 0.25 * (1 + 0.6 * Math.sin(a * 6));
+    } else if (v.y < -0.38 * sy) v.y = -0.38 * sy + (v.y + 0.38 * sy) * 0.3; // flat-ish bottom
     pos.setXYZ(i, v.x, v.y, v.z);
   }
   geo.computeVertexNormals();
@@ -115,7 +138,10 @@ export function makeMonster2(seed, opts = {}) {
   const bottom = geo.boundingBox.min.y;
 
   let bodyMat;
-  if (skin === 'jelly') bodyMat = new THREE.MeshPhysicalMaterial({ color: baseColor, roughness: 0.1, transparent: true, opacity: 0.82, clearcoat: 1, clearcoatRoughness: 0.05, emissive: baseColor, emissiveIntensity: 0.2 });
+  if (skin === 'slime') { bodyMat = new THREE.MeshPhysicalMaterial({ color: baseColor, roughness: 0.05, transparent: true, opacity: 0.9, clearcoat: 1, emissive: baseColor, emissiveIntensity: 0.12 }); bodyMat.userData.forceOutline = true; }
+  else if (skin === 'crystal') bodyMat = new THREE.MeshPhysicalMaterial({ color: baseColor.clone().multiplyScalar(0.85), roughness: 0.1, clearcoat: 1, emissive: baseColor, emissiveIntensity: 0.12, flatShading: true });
+  else if (skin === 'ghost') bodyMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.6, emissive: baseColor, emissiveIntensity: 0.15, side: THREE.DoubleSide });
+  else if (skin === 'jelly') bodyMat = new THREE.MeshPhysicalMaterial({ color: baseColor, roughness: 0.1, transparent: true, opacity: 0.82, clearcoat: 1, clearcoatRoughness: 0.05, emissive: baseColor, emissiveIntensity: 0.2 });
   else if (skin === 'velvet') bodyMat = new THREE.MeshPhysicalMaterial({ color: baseColor, roughness: 0.75, sheen: 1, sheenRoughness: 0.45, sheenColor: baseColor.clone().lerp(new THREE.Color(1, 1, 1), 0.5) });
   else if (skin === 'pearl') bodyMat = new THREE.MeshPhysicalMaterial({ color: baseColor.clone().lerp(new THREE.Color(1, 1, 1), 0.25), roughness: 0.22, metalness: 0.1, iridescence: 1, iridescenceIOR: 1.35, iridescenceThicknessRange: [200, 600], clearcoat: 0.8 });
   else if (['spots', 'stripes', 'polka', 'scales', 'belly'].includes(skin)) {
@@ -136,6 +162,7 @@ export function makeMonster2(seed, opts = {}) {
     bodyGroup.add(fur);
   }
   monster.add(bodyGroup);
+  addStyleParts(style, bodyGroup, geo, baseColor, accent, r, sx);
   const softMat = c => skin.startsWith('fur') ? new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }) : new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.45, clearcoat: 0.5 });
   const limbColor = chance(0.3) ? accent : baseColor.clone().multiplyScalar(0.88);
   const limbMat = softMat(limbColor);
@@ -441,7 +468,7 @@ export function makeMonster2(seed, opts = {}) {
     arms.push(arm);
   }
   const footKind = pick(['round', 'round', 'big', 'three', 'claws']);
-  const feet = footKind === 'three' ? [-1, 0, 1] : [-1, 1];
+  const feet = style === 'sliz' || style === 'duch' ? [] : footKind === 'three' ? [-1, 0, 1] : [-1, 1]; // slime sits in its puddle, a ghost floats
   for (const s of feet) {
     const fs = footKind === 'big' ? 0.12 : 0.09;
     const foot = new THREE.Mesh(new THREE.SphereGeometry(fs, 28, 14), limbMat);
@@ -453,7 +480,8 @@ export function makeMonster2(seed, opts = {}) {
   }
 
   // ---- size: fits roughly into a 1-unit tall space ----
-  monster.position.y = -bottom;
+  monster.position.y = -bottom + (style === 'duch' ? 0.08 : 0);
+  const baseY = monster.position.y;
   const holder = new THREE.Group();
   holder.add(monster);
   monster.updateMatrixWorld(true);
@@ -468,11 +496,13 @@ export function makeMonster2(seed, opts = {}) {
   holder.userData.monster = {
     // where accessories go (in the monster's own units; the group sits on the floor)
     mount: { group: monster, top: geo.boundingBox.max.y + furLen * 0.6, faceY: faceY, front: geo.boundingBox.max.z + furLen * 0.6, width: geo.boundingBox.max.x },
-    name, seed, color: baseColor.getHex(), gen: 2, expr: {},
+    name, seed, color: baseColor.getHex(), gen: opts.gen || 2, style, expr: {},
     update(t, camPos) {
       const ex = this.expr || {};
       const bob = Math.sin(t * 2.2 + phase);
-      bodyGroup.scale.set(1 + bob * 0.02, 1 - bob * 0.025, 1 + bob * 0.02);
+      const wob = style === 'sliz' ? 2.5 : 1; // slime wobbles more
+      bodyGroup.scale.set(1 + bob * 0.02 * wob, 1 - bob * 0.025 * wob, 1 + bob * 0.02 * wob);
+      if (style === 'duch') monster.position.y = baseY + 0.05 * Math.sin(t * 1.6 + phase);
       const es = ex.eyeScale || 1, shut = ex.closed || ex.sleep;
       const blink = t > blinkAt.t && t < blinkAt.t + 0.14;
       eyes.forEach((e, i) => {
@@ -494,4 +524,60 @@ export function makeMonster2(seed, opts = {}) {
     },
   };
   return holder;
+}
+
+// The extra parts of the generation 3 kinds (inside the body group, so they wobble with it).
+function addStyleParts(style, group, geo, color, accent, r, sx) {
+  const box = geo.boundingBox, bottom = box.min.y;
+  if (style === 'sliz') {
+    const mat = new THREE.MeshPhysicalMaterial({ color: color.clone().multiplyScalar(0.82), roughness: 0.05, clearcoat: 1 });
+    // a shiny highlight makes it look wet
+    const shine = new THREE.Mesh(new THREE.SphereGeometry(0.12, 20, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 }));
+    shine.scale.set(1, 0.45, 0.2); shine.position.set(-0.22 * sx, box.max.y * 0.55, 0.36); shine.rotation.z = 0.5;
+    shine.userData.noOutline = true; shine.material.userData.noToon = true;
+    group.add(shine);
+    // a puddle of slime around the bottom
+    const pud = new THREE.Mesh(new THREE.SphereGeometry(0.5, 40, 12), mat);
+    pud.scale.set(sx * 1.25, 0.08, 1.2); pud.position.y = bottom + 0.02;
+    // drips running down the sides
+    const n = 5 + Math.floor(r() * 4);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + r() * 0.5, len = 0.08 + r() * 0.12;
+      const drip = new THREE.Group();
+      const stem = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, len, 6, 12), mat); stem.position.y = -len / 2;
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.058, 16, 12), mat); tip.position.y = -len - 0.02;
+      drip.add(stem, tip);
+      const y = bottom * 0.1 + r() * 0.12;
+      drip.position.set(Math.cos(a) * 0.5 * sx * 0.95, y, Math.abs(Math.sin(a)) * 0.5); // mostly on the front, where they are seen
+      group.add(drip);
+    }
+    // bubbles inside
+    const bub = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.65, roughness: 0.1 });
+    for (let i = 0; i < 7; i++) {
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.025 + r() * 0.035, 12, 10), bub);
+      b.position.set((r() - 0.5) * 0.5 * sx, bottom + 0.12 + r() * 0.35, (r() - 0.5) * 0.4);
+      b.userData.noOutline = true;
+      group.add(b);
+    }
+    group.add(pud);
+  }
+  if (style === 'krystal') {
+    const mat = new THREE.MeshPhysicalMaterial({ color: accent.clone().lerp(new THREE.Color(0xffffff), 0.45), roughness: 0.05, clearcoat: 1, emissive: accent, emissiveIntensity: 0.2, flatShading: true });
+    const n = 4 + Math.floor(r() * 3);
+    for (let i = 0; i < n; i++) {
+      const h = 0.2 + r() * 0.2;
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.055 + r() * 0.03, h, 5), mat);
+      c.geometry.translate(0, h / 2, 0);
+      const a = (i / n) * Math.PI * 2 + r(), tilt = 0.25 + r() * 0.5;
+      c.position.set(Math.cos(a) * 0.18, box.max.y - 0.07, Math.sin(a) * 0.15 - 0.05);
+      c.rotation.set(Math.sin(a) * tilt, 0, -Math.cos(a) * tilt);
+      group.add(c);
+    }
+  }
+  if (style === 'mracek') {
+    // puffs make it a cloud
+    const mat = new THREE.MeshPhysicalMaterial({ color, roughness: 0.75, sheen: 1, sheenColor: new THREE.Color(0xffffff) });
+    const puffs = [[-0.42, 0.12, 0.05, 0.22], [0.42, 0.1, 0.05, 0.22], [-0.2, 0.36, 0, 0.2], [0.18, 0.4, -0.02, 0.22], [0, 0.26, -0.15, 0.26], [-0.5, -0.12, 0.1, 0.16], [0.5, -0.14, 0.1, 0.16]];
+    for (const [x, y, z, rad] of puffs) { const p = new THREE.Mesh(new THREE.SphereGeometry(rad * (0.9 + r() * 0.2), 24, 16), mat); p.position.set(x * sx, y, z); group.add(p); }
+  }
 }

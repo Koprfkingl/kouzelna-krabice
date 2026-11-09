@@ -52,6 +52,13 @@ const list = await page.evaluate(async () => {
     ...KOUZLA.map(x => ({ name: x.name, src: { type: 'combo', id: x.id } })),
     ...(OZDOBY || []).map(o => ({ name: o.nazev, src: { type: 'ozdoba', id: o.id } })),
     { name: 'Příšerka', src: { type: 'monster' } },
+    // generation 3: one monster of every kind (slime, crystal, cloud, ghost, normal)
+    ...await (async () => {
+      const { monsterStyle } = await import('/js/monster2.js');
+      const seen = {}, out = [];
+      for (let s = 1; s < 500; s++) { const st = monsterStyle(s, 3); if (!seen[st]) { seen[st] = 1; out.push({ name: `Příšerka 3. generace: ${st}`, src: { type: 'monster', seed: s, gen: 3 } }); } }
+      return out;
+    })(),
     ...DOPLNKY.map(d => ({ name: `Příšerka s doplňkem ${d.nazev}`, src: { type: 'monster' }, wear: d.id })),
     ...DOPLNKY.map(d => ({ name: `Příšerka, ${d.nazev} oblečený v šatníku`, src: { type: 'monster' }, wear: d.id, later: true })),
   ];
@@ -65,7 +72,7 @@ for (const t of list) {
     const { wear } = await import('/js/doplnky.js');
     const k = window.__kk;
     const src = t.src.type === 'item' ? { type: 'item', item: k.ITEMS.find(i => i.id === t.src.id) }
-      : t.src.type === 'monster' ? { type: 'monster', monster: { seed: 4242, name: 'Test', tint: null, gen: 2 } } : t.src;
+      : t.src.type === 'monster' ? { type: 'monster', monster: { seed: t.src.seed || 4242, name: 'Test', tint: null, gen: t.src.gen || 2 } } : t.src;
     // an accessory is either part of the saved monster (built with it) or put on afterwards in the wardrobe
     const album = k.album();
     if (t.wear && !t.later) k.setAlbum([{ seed: 4242, name: 'Test', tint: null, gen: 2, thumb: '', doplnky: [t.wear] }]);

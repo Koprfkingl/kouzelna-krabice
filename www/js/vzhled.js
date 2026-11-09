@@ -99,7 +99,7 @@ outlineMat.customProgramCacheKey = () => 'ink-outline';
 function wantsOutline(o) {
   if (o.userData.noOutline || !o.geometry || !o.geometry.attributes.normal) return false;
   const mats = [o.material].flat();
-  if (mats.some(m => !m || m.transparent || m.side === THREE.DoubleSide || m.isShaderMaterial || m.isPointsMaterial || m.userData.outline || m.userData.noOutline)) return false;
+  if (mats.some(m => !m || (m.transparent && !m.userData.forceOutline) || m.side === THREE.DoubleSide || m.isShaderMaterial || m.isPointsMaterial || m.userData.outline || m.userData.noOutline)) return false;
   if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
   const s = new THREE.Vector3(); o.getWorldScale(s);
   const r = o.geometry.boundingSphere.radius * Math.max(s.x, s.y, s.z);
