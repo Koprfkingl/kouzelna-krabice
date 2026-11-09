@@ -19,13 +19,19 @@ import { KEY, adaptQuality, box, boxSlot, camera, canvas, captureRoomReflections
   room, scene, sparkles, spinner, texLoader } from './scena.js';
 import { ageCare, albumEntry, canvasTexture, emojiTexCache, floatUp, freshCare, moodOf, neediest, pet, renderCare,
   updateFloaters } from './pece.js';
-import { openReading, openWardrobe, readRound, renderRank } from './citanka.js';
+import { giveStar, openReading, openWardrobe, readRound, renderRank } from './citanka.js';
 import { buildTrophies, decor, openRoom, placeInRoom, restoreRoom, roomPointerDown, roomTarget, showMarkers, spotAtScreen, srcOf,
   takeFromRoom, unplacedOzdoby, updateDecor } from './pokojicek.js';
 import { addSecond, dropSecond, kniha, renderAlbumTabs } from './kniha.js';
 import { endSchovka, readSchovka, renderSchovkaCard, startSchovka } from './schovka.js';
 import { dayEvent, den, openDen, renderDenBtn } from './den.js';
-import { monsterStyle } from './monster2.js';
+import { babyFields, babyOf, babyOpts, babySize, isPair, styleOf } from './mimi.js';
+import { initAdvent, updateAdvent } from './advent.js';
+import { initDopisy } from './dopisy.js';
+import { RECEPTY, buildJidlo, describeJidlo, feedEveryone, openKucharka } from './vareni.js';
+import { initTapety, openTapety } from './tapety.js';
+import { initVylety, minutesLeft, onTrip, sendOnTrip, tripWhere } from './vylety.js';
+import { boostCount, boostParty, boosted, useBoost } from './boost.js';
 import { moveFoch, vitrinaTarget, vitrinaTip, vitrinaTitle } from './vitrina.js';
 import { makeMess, messCount, restoreMess, tapMess, uklidPanel, updateMess } from './neporadek.js';
 
@@ -140,9 +146,10 @@ async function buildCombo(k) {
   if (k.effect === 'svetlo') { const l = new THREE.PointLight(0xffd36e, 1.5, 1.6, 2); l.position.y = 0.4; g.add(l); }
   return g;
 }
-function buildMonster(m) { return makeMonster(m.seed, { tint: m.tint, size: 0.82, gen: m.gen || 1 }); }
+function buildMonster(m) { const o = babyOpts(m); return makeMonster(m.seed, { tint: m.tint, size: 0.82 * babySize(o), gen: m.gen || 1, ...o }); }
 function describe(src) {
   if (src.type === 'combo') { const k = kouzloById(src.id); return { living: false, name: k.name, acc: k.acc, g: k.g }; }
+  if (src.type === 'jidlo') return describeJidlo(src);
   if (src.type === 'ozdoba') { const o = ozdobaById(src.id); return { living: false, name: o.nazev, acc: o.nazev.toLowerCase(), g: 'f' }; }
   if (src.type === 'item') return { living: src.item.kind === 'zive', name: src.item.name, acc: src.item.acc, g: src.item.g };
   if (src.type === 'photo') {
@@ -152,7 +159,7 @@ function describe(src) {
     return { living: k === 'zive', name, acc, g: k === 'veci' ? 'f' : 'm' };
   }
   const n = src.monster.name;
-  const kind = { sliz: 'slizovou ', krystal: 'krystalovou ', mracek: 'obláčkovou ', duch: 'strašidýlkovou ' }[monsterStyle(src.monster.seed, src.monster.gen || 1)] || '';
+  const kind = { sliz: 'slizovou ', krystal: 'krystalovou ', mracek: 'obláčkovou ', duch: 'strašidýlkovou ' }[styleOf(src.monster)] || '';
   return { living: true, name: `Příšerka ${n}`, acc: `${kind}příšerku ${n}`, g: 'f' };
 }
 
@@ -160,7 +167,7 @@ function describe(src) {
 async function buildFor(src, { decor: forRoom = false } = {}) {
   if (src.type === 'monster' && !forRoom) takeFromRoom(src.monster.seed);
   const obj = src.type === 'item' ? await buildItem(src.item) : src.type === 'photo' ? await buildPhoto(src.photo)
-    : src.type === 'combo' ? await buildCombo(kouzloById(src.id)) : src.type === 'ozdoba' ? buildOzdoba(src.id) : buildMonster(src.monster);
+    : src.type === 'combo' ? await buildCombo(kouzloById(src.id)) : src.type === 'ozdoba' ? buildOzdoba(src.id) : src.type === 'jidlo' ? buildJidlo(src) : buildMonster(src.monster);
   if (src.type === 'monster') { const e = S.album.find(a => a.seed === src.monster.seed); if (e && e.doplnky && e.doplnky.length) wear(obj, e.doplnky); }
   if (CARTOON) { toonify(obj); if (src.type === 'item' && src.item.ton) tint(obj, src.item.ton); }
   const dis = prepareDissolve(obj);
@@ -183,6 +190,16 @@ let mistTarget = 0, mist = 0;
 let zapping = false;
 
 // The monster on the stage (or just out of the box) flies off to freedom: out of the collection and the room.
+// a monster goes on a trip out of the window; it comes back later with a postcard (vylety.js)
+async function sendTrip(entry) {
+  const c = S.current;
+  const t = sendOnTrip(entry);
+  play('whoosh');
+  floatUp('🎒', centerOf(c.obj).c, { n: 2, spread: 0.3 });
+  showBubble('🎒 ' + t); speak(t);
+  await removeCurrent();
+  await showPicker();
+}
 async function releaseCurrent() {
   const c = S.current;
   if (!c || c.type !== 'monster') return;
@@ -370,12 +387,22 @@ async function reveal(before) {
   // a little celebration around the new creation
   { const { c: ctr, s: sz } = centerOf(c.obj); for (const ch of ['⭐', '✨', '🎉', '💫']) floatUp(ch, ctr.clone().add(new THREE.Vector3(0, sz.y * 0.3, 0)), { n: 3, spread: sz.x * 1.6, rise: 0.7, life: 2.2, size: 0.16 }); sparkles.userData.emit(ctr, 80, 1.4, 0.4); }
   let sentence = `${before.name} ${before.g === 'pm' ? 'se proměnili' : proměnil(before.g)} na ${c.acc}!`;
-  if (before.kouzlo && before.kouzlo !== 'mix') {
+  if (before.kouzlo && typeof before.kouzlo === 'object') { // a secret spell from the book
     const k = before.kouzlo, isNew = !kniha[k.id];
     sentence = `${isNew ? 'Tajné kouzlo! ' : ''}${before.name} = ${c.name}!${isNew ? ' Zapisuju ho do Knihy kouzel.' : ''}`;
     setTimeout(async () => { if (S.current !== c) return; const img = await snapshot(c.obj); if (!kniha[k.id] || isNew) { kniha[k.id] = img; store.set('kk-kniha', kniha); } }, 3600);
     if (isNew) { kniha[k.id] = kniha[k.id] || ''; store.set('kk-kniha', kniha); for (const ch of ['📕', '✨', '🌟']) floatUp(ch, centerOf(c.obj).c, { n: 3, spread: 1, rise: 1, life: 2.6 }); }
+  } else if (before.kouzlo === 'mimi') {
+    sentence = `${before.name} mají miminko! Jmenuje se ${c.monster.name}. Starej se o ně a vyroste.`;
+    for (const ch of ['🍼', '💕', '👶']) floatUp(ch, centerOf(c.obj).c, { n: 3, spread: 1, rise: 1, life: 2.6 });
+  } else if (c.type === 'jidlo' && before.miska) {
+    const n = feedEveryone();
+    sentence = `Uvařil${rod('a', '')} jsi ${c.acc}! ${n ? 'Příšerky ochutnaly a jsou krásně najedené. ' : ''}Dobrou chuť! Máš hvězdičku.`;
+    const news = giveStar(centerOf(c.obj).c);
+    if (news) sentence += ' ' + news;
+    for (const ch of ['😋', '🍽️', '⭐']) floatUp(ch, centerOf(c.obj).c, { n: 3, spread: 1, rise: 1, life: 2.6 });
   } else if (before.kouzlo === 'mix') sentence = `${before.name} se smíchal${before.g === 'pm' ? 'i' : 'y'} a vznikla ${low1(c.name)}! Tahle dvojice v Knize kouzel není, zkus jinou.`;
+  if (S.boost) sentence += ' ' + boostParty(c, centerOf(c.obj).c);
   showBubble('✨ ' + sentence + ' ✨');
   speak(sentence.replace(/=/g, 'je'));
   dayEvent('promena', { type: c.type, item: c.item?.id, dvojice: !!before.dvojice });
@@ -796,6 +823,7 @@ function loop() {
   updateDecor(t, dt);
   if (!FREEZE) room.userData.update(t);
   updateMess(t);
+  if (!FREEZE) updateAdvent(t, dt);
   updateReaction(now);
   updateDrag(dt);
   updateFloaters(dt);
@@ -850,7 +878,7 @@ async function saveToAlbum(c) {
     return false;
   }
   const thumb = await snapshot(c.obj);
-  S.album.unshift({ seed: c.monster.seed, name: c.monster.name, tint: c.monster.tint || null, gen: c.monster.gen || 1, thumb, pece: freshCare() });
+  S.album.unshift({ seed: c.monster.seed, name: c.monster.name, tint: c.monster.tint || null, gen: c.monster.gen || 1, ...babyFields(c.monster), thumb, pece: freshCare() });
   c.unsaved = false;
   while (!store.set('kk-album', S.album) && S.album.length > 1) S.album.pop();
   updateAlbumCount();
@@ -908,9 +936,13 @@ const TARGET_KINDS = [...KINDS.slice(0, 3), { id: 'priserky', label: 'Příšerk
 let srcTab = 'zive', dstTab = 'veci', chosenTarget = { surprise: true };
 
 function renderSource() {
-  tabs($('zalozky-zdroj'), srcTab, id => { srcTab = id; renderSource(); });
+  tabs($('zalozky-zdroj'), srcTab, id => { srcTab = id; renderSource(); }, [...KINDS, { id: 'vareni', label: 'Vaření', icon: '👩‍🍳' }]);
   const grid = $('mrizka-zdroj');
   grid.innerHTML = '';
+  if (srcTab === 'vareni') {
+    for (const r of RECEPTY) grid.append(tile({ label: r.nazev, icon: r.ikona, onClick: () => openKucharka(r.id, id => choose({ type: 'jidlo', id, miska: true })) }));
+    return;
+  }
   if (srcTab === 'fotky') {
     grid.append(tile({ label: 'Vyfotit', icon: '📸', cls: 'foto-nova', onClick: () => $('foto-vstup').click() }));
     for (const p of S.photos) grid.append(tile({ label: p.kind === 'zive' ? 'Živé' : p.kind === 'stroje' ? 'Stroj' : 'Věc', img: p.data, onClick: () => choose({ type: 'photo', photo: p }) }));
@@ -939,7 +971,7 @@ function renderTargets() {
   const mark = (t, same) => { if (same) t.classList.add('vybrano'); return t; };
   if (dstTab === 'priserky') {
     grid.append(tile({ label: 'Nová příšerka', icon: '👾', onClick: el => pickT({ type: 'monster', monster: newMonsterSpec() }, el) }));
-    for (const a of S.album) grid.append(mark(tile({ label: a.name, img: a.thumb, onClick: el => pickT({ type: 'monster', monster: { seed: a.seed, name: a.name, tint: a.tint, gen: a.gen } }, el) }), chosenTarget.monster?.seed === a.seed));
+    for (const a of S.album.filter(x => !onTrip(x))) grid.append(mark(tile({ label: a.name, img: a.thumb, onClick: el => pickT({ type: 'monster', monster: { seed: a.seed, name: a.name, tint: a.tint, gen: a.gen } }, el) }), chosenTarget.monster?.seed === a.seed));
   } else if (dstTab === 'fotky') {
     for (const p of S.photos) grid.append(mark(tile({ label: 'Fotka', img: p.data, onClick: el => pickT({ type: 'photo', photo: p }, el) }), chosenTarget.photo?.id === p.id));
   } else {
@@ -960,6 +992,7 @@ function randomTarget() {
   return { type: 'item', item: pool[Math.floor(Math.random() * pool.length)] };
 }
 function pickTarget() {
+  if (S.current.type === 'jidlo' && S.current.miska) return { type: 'jidlo', id: S.current.id }; // the laser cooks
   if (S.current.living) return { type: 'monster', monster: newMonsterSpec(S.current.type === 'photo' ? S.current.photo.color : null) };
   if (!chosenTarget || chosenTarget.surprise) return randomTarget();
   if (chosenTarget.type === 'monster' && S.current.type === 'monster' && chosenTarget.monster.seed === S.current.monster.seed) return { type: 'monster', monster: newMonsterSpec() };
@@ -986,13 +1019,19 @@ const fireLaser = async () => {
   if (S.second) {
     const a = S.current, b = S.second;
     const k = a.type === 'item' && b.type === 'item' ? findKouzlo(a.item.id, b.item.id) : null;
+    if (isPair(a, b)) { // two monsters: a baby
+      await zap(boosted({ type: 'monster', monster: babyOf(a, b) }));
+      lastBefore = { name: `${a.monster.name} a ${b.monster.name}`, g: 'p', kouzlo: 'mimi', dvojice: true };
+      setPhase('done');
+      return;
+    }
     const masc = x => x.g === 'm' && (x.living || x.type === 'monster' || x.item?.id === 'robot');
-    await zap(k ? { type: 'combo', id: k.id } : { type: 'monster', monster: newMonsterSpec() });
+    await zap(boosted(k ? { type: 'combo', id: k.id } : { type: 'monster', monster: newMonsterSpec() }));
     lastBefore = { name: `${a.name} a ${low1(b.name)}`, g: masc(a) || masc(b) ? 'pm' : 'p', kouzlo: k || 'mix', dvojice: true };
     setPhase('done');
     return;
   }
-  const r = await zap(pickTarget()); lastBefore = r.before; setPhase('done');
+  const r = await zap(boosted(pickTarget())); lastBefore = r.before; setPhase('done');
 };
 // Each step of the magic is one button press.
 // phase: stage → stageOpen → inside → closed → (laser) → done → (open) → result
@@ -1018,6 +1057,7 @@ function setPhase(p) {
   const toRoom = c && c.where === 'stage' && srcOf(c) ? action('🏠 Dát do pokojíčku', async () => openRoom()) : null;
   const freeBtn = c && c.type === 'monster' ? action('🕊️ Pustit na svobodu', releaseCurrent) : null;
   const hideBtn = entry && c.where === 'stage' ? action('🙈 Schovávaná', async () => startSchovka()) : null;
+  const tripBtn = entry && c.where === 'stage' ? action('🎒 Poslat na výlet', async () => sendTrip(entry)) : null;
   if (p === 'schovka') {
     const s = S.schovka;
     if (s.found) {
@@ -1052,13 +1092,13 @@ function setPhase(p) {
     if (c && c.where === 'stage' && c.fromRoom) {
       extra = [action('📦 Dát do krabice', intoBox),
         action('🧹 Uklidit', tidyCurrent), freeBtn].filter(Boolean);
-    }
+    } else extra = [action('🎨 Tapety a koberce', async () => openTapety())];
     showMarkers(!!can || ozd > 0);
   } else if (p === 'stage') {
     title = `${c.name} čeká před krabicí`;
     tip = 'Klepni na tlačítko, nebo to prstem přetáhni do krabice.';
     main = action('⬆️ Dát do krabice', intoBox);
-    extra = careBtn ? [careBtn, readBtn, hideBtn, other, freeBtn] : [toRoom, other, freeBtn].filter(Boolean);
+    extra = careBtn ? [careBtn, readBtn, hideBtn, tripBtn, other, freeBtn] : [toRoom, other, freeBtn].filter(Boolean);
   } else if (p === 'care') {
     const m = moodOf(entry), want = neediest(entry.pece);
     title = `${c.monster.name} ${m.text} ${m.emoji}`;
@@ -1082,9 +1122,10 @@ function setPhase(p) {
     tip = S.second ? `${c.name} a ${low1(S.second.name)} se smíchají. Přetáhni blesk na krabici!` : c.living ? 'Přetáhni blesk na krabici!' : 'Přetáhni obrázek nebo blesk na krabici!';
     if (S.second) { /* the pair decides */ }
     else if (c.living) $('zive-info').hidden = false;
+    else if (c.type === 'jidlo' && c.miska) { title = 'Vaříme!'; tip = `Vystřel laser a z misky bude ${c.acc.replace(/^misku na /, '')}!`; }
     else { $('cil-volba').hidden = false; renderTargets(); }
     main = action('⚡ LASER! ⚡', fireLaser, 'laser');
-    extra = [action('⬇️ Vyndat ven', async () => { dropSecond(); await setLid(true); await moveCurrent('stage'); await setLid(false); setPhase('stage'); }),
+    extra = [boostCount() ? action(`🌟 Laser Boost (${boostCount()})`, async () => { if (useBoost()) await fireLaser(); }) : null,action('⬇️ Vyndat ven', async () => { dropSecond(); await setLid(true); await moveCurrent('stage'); await setLid(false); setPhase('stage'); }),
       !S.second && ['item', 'monster', 'combo'].includes(c.type) ? action('➕ Přidat druhou věc', async () => { setLid(true); showPicker('druha'); }) : null];
   } else if (p === 'done') {
     title = 'Hotovo! Co je uvnitř?';
@@ -1214,7 +1255,7 @@ async function choose(src) {
   } finally { S.busy = false; }
   chosenTarget = { surprise: true };
   // a toy or a photo from the picker goes straight into the box (monsters stay in front for care and reading)
-  if (src.type === 'item' || src.type === 'photo') { speak(S.current.name); return run(intoBox, { silent: true }); }
+  if (src.type === 'item' || src.type === 'photo' || src.type === 'jidlo') { speak(S.current.name); return run(intoBox, { silent: true }); }
   setPhase('stage');
   const entry = albumEntry(S.current), want = entry && neediest(entry.pece);
   if (want) { const t = `${S.current.monster.name}: ${want.want}`; showBubble(t + ' ' + want.icon); speak(t); }
@@ -1261,7 +1302,7 @@ function renderAlbum() {
   if (!S.album.length) { grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;opacity:.8">Zatím tu nic není. Dej do krabice něco živého!</p>'; return; }
   for (const a of S.album) {
     ageCare(a);
-    grid.append(tile({ label: `${a.name} ${moodOf(a).emoji}`, img: a.thumb, onClick: () => {
+    grid.append(tile({ label: onTrip(a) ? `🎒 ${a.name}` : `${a.baby ? '🍼 ' : ''}${a.name} ${moodOf(a).emoji}`, img: a.thumb, onClick: () => {
       if (releasing) {
         if (!confirm(`Opravdu pustit příšerku ${a.name} na svobodu? Už se nevrátí.`)) return;
         S.album = S.album.filter(x => x !== a);
@@ -1276,6 +1317,7 @@ function renderAlbum() {
         renderAlbum();
         return;
       }
+      if (onTrip(a)) { play('boing'); const t = `${a.name} je na výletě ${tripWhere(a)}. Vrátí se za ${minutesLeft(a)} minut.`; showBubble('🎒 ' + t); speak(t); return; }
       $('album').hidden = true;
       choose({ type: 'monster', monster: { seed: a.seed, name: a.name, tint: a.tint, gen: a.gen } });
     } }));
@@ -1340,6 +1382,10 @@ async function start() {
   if (CARTOON) { cartoonLights(scene, renderer); toonify(scene); } else await captureRoomReflections();
   buildTrophies();
   restoreRoom().then(restoreMess);
+  initAdvent();
+  initDopisy();
+  initTapety();
+  initVylety();
   renderDenBtn();
   requestAnimationFrame(loop);
   await putOnStage({ type: 'item', item: first }, { appear: false });

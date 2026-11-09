@@ -3,7 +3,7 @@
 // - a cartoon outline that does not move with the model (the parrot's black "wing shadows"),
 // - flat pictures (sprites) inside a model, which the dissolve effect cannot hide,
 // - a shadow that stays on the floor when the thing is gone (a hidden monster under the bed).
-// Every thing (catalogue items, secret spells, gift decorations, a monster with each accessory, also one put on
+// Every thing (catalogue items, secret spells, gift decorations and souvenirs, dishes and their bowls, babies, a monster with each accessory, also one put on
 // later in the wardrobe) is built, rendered alone while fully dissolved (nothing may be left) and while whole
 // (something must be there), and its outlines are compared with the meshes they follow.
 // Usage: npm run test:modely   (needs `npm run vendor` first)
@@ -51,6 +51,10 @@ const list = await page.evaluate(async () => {
     ...k.ITEMS.map(i => ({ name: i.name, src: { type: 'item', id: i.id } })),
     ...KOUZLA.map(x => ({ name: x.name, src: { type: 'combo', id: x.id } })),
     ...(OZDOBY || []).map(o => ({ name: o.nazev, src: { type: 'ozdoba', id: o.id } })),
+    ...await (async () => {
+      const { RECEPTY } = await import('/js/vareni.js');
+      return RECEPTY.flatMap(r => [{ name: `Jídlo: ${r.nazev}`, src: { type: 'jidlo', id: r.id } }, { name: `Miska na ${r.acc}`, src: { type: 'jidlo', id: r.id, miska: true } }]);
+    })(),
     { name: 'Příšerka', src: { type: 'monster' } },
     // generation 3: one monster of every kind (slime, crystal, cloud, ghost, normal)
     ...await (async () => {
@@ -59,6 +63,8 @@ const list = await page.evaluate(async () => {
       for (let s = 1; s < 500; s++) { const st = monsterStyle(s, 3); if (!seen[st]) { seen[st] = 1; out.push({ name: `Příšerka 3. generace: ${st}`, src: { type: 'monster', seed: s, gen: 3 } }); } }
       return out;
     })(),
+    // babies: small with big eyes, a kind taken from a parent
+    ...['sliz', 'krystal', 'mracek', 'duch'].map((style, i) => ({ name: `Miminko: ${style}`, src: { type: 'monster', seed: 500 + i, gen: 3, style, baby: true, rust: i / 4 } })),
     ...DOPLNKY.map(d => ({ name: `Příšerka s doplňkem ${d.nazev}`, src: { type: 'monster' }, wear: d.id })),
     ...DOPLNKY.map(d => ({ name: `Příšerka, ${d.nazev} oblečený v šatníku`, src: { type: 'monster' }, wear: d.id, later: true })),
   ];
@@ -72,7 +78,7 @@ for (const t of list) {
     const { wear } = await import('/js/doplnky.js');
     const k = window.__kk;
     const src = t.src.type === 'item' ? { type: 'item', item: k.ITEMS.find(i => i.id === t.src.id) }
-      : t.src.type === 'monster' ? { type: 'monster', monster: { seed: t.src.seed || 4242, name: 'Test', tint: null, gen: t.src.gen || 2 } } : t.src;
+      : t.src.type === 'monster' ? { type: 'monster', monster: { seed: t.src.seed || 4242, name: 'Test', tint: null, gen: t.src.gen || 2, style: t.src.style, baby: t.src.baby, rust: t.src.rust } } : t.src;
     // an accessory is either part of the saved monster (built with it) or put on afterwards in the wardrobe
     const album = k.album();
     if (t.wear && !t.later) k.setAlbum([{ seed: 4242, name: 'Test', tint: null, gen: 2, thumb: '', doplnky: [t.wear] }]);

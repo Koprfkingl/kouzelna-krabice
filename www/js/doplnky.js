@@ -13,6 +13,7 @@ export const DOPLNKY = [
   { id: 'korunka', nazev: 'Korunka', ikona: '👑', hvezdy: 50, slot: 'hlava' },
   { id: 'hvezda', nazev: 'Kouzelná hvězda', ikona: '⭐', hvezdy: 75, slot: 'nad' },
   { id: 'kridla', nazev: 'Křídla', ikona: '🦋', hvezdy: 100, slot: 'zada' },
+  { id: 'santa', nazev: 'Santova čepice', ikona: '🎅', hvezdy: 0, slot: 'hlava', vanoce: true }, // from the Advent calendar
 ];
 export const byIdD = id => DOPLNKY.find(d => d.id === id);
 
@@ -45,6 +46,14 @@ const BUILD = {
     const cone = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.3, 28), new THREE.MeshPhysicalMaterial({ map: t, roughness: 0.5 })); cone.position.y = 0.15;
     const pom = new THREE.Mesh(new THREE.SphereGeometry(0.04, 14, 10), mat(0xffffff, { roughness: 1 })); pom.position.y = 0.31;
     g.add(cone, pom); g.position.set(0.04, mt.top - 0.04, 0); g.rotation.z = -0.18;
+    return g;
+  },
+  santa: mt => {
+    const g = new THREE.Group(), red = mat(0xe8283c, { roughness: 0.7, clearcoat: 0.1 }), white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.32, 24), red); cone.position.set(0.03, 0.16, 0); cone.rotation.z = -0.35;
+    const brim = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.04, 12, 28), white); brim.rotation.x = Math.PI / 2; brim.position.y = 0.01;
+    const pom = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 12), white); pom.position.set(0.14, 0.29, 0);
+    g.add(cone, brim, pom); g.position.set(0, mt.top - 0.05, 0);
     return g;
   },
   cylindr: mt => {

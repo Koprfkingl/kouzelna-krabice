@@ -229,3 +229,68 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 /* the room button when monsters made a mess */
 #btn-pokoj.neporadek::after { content: '🧹'; position: absolute; top: -6px; right: -6px; font-size: 20px; animation: chce 1.2s ease-in-out infinite; }
 #btn-pokoj { position: relative; }
+
+/* Advent calendar and the season pass */
+.advent-mrizka { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 8px; }
+.okenko { min-width: 0; aspect-ratio: 1; border-radius: 12px; border: 2.5px solid var(--ink); background: #2f9e5b; color: #fff; font-weight: 800; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0; font-family: inherit; box-shadow: 0 3px 0 var(--ink); }
+.okenko:nth-child(3n) { background: #e8283c; } .okenko:nth-child(4n) { background: #3b6fd6; }
+.okenko .cislo { font-size: 13px; } .okenko .cislo.zavrene { font-size: 22px; } .okenko .ikona { font-size: 24px; line-height: 1; }
+.okenko.otevrene { background: var(--krem); color: var(--ink); }
+.okenko.zamcene { opacity: .55; }
+.okenko.dnes { background: var(--zluta); color: var(--ink); animation: chce 1.2s ease-in-out infinite; }
+.permice { background: var(--papir); border: 2.5px solid var(--ink); border-radius: 16px; padding: 8px 10px; }
+.permice-nadpis { font-size: 15px; } .permice-nadpis small { opacity: .7; }
+.permice-lista { height: 12px; border-radius: 9px; border: 2px solid var(--ink); background: #efe4f3; overflow: hidden; margin: 6px 0; }
+#permice-pruh { height: 100%; width: 0; background: linear-gradient(90deg, #ffd34d, #ff6f9f); }
+.permice-odmeny { display: flex; justify-content: space-around; }
+.permice-odmeny .odmena { text-align: center; font-size: 12px; font-weight: 700; opacity: .5; cursor: pointer; }
+.permice-odmeny .odmena b { display: block; font-size: 24px; }
+.permice-odmeny .odmena.ziskana { opacity: 1; }
+.advent-vzkaz { margin-top: 8px; background: #fff; border: 2.5px solid var(--ink); border-radius: 16px; padding: 8px 12px; text-align: center; font-weight: 600; }
+.advent-vzkaz .advent-text { font-size: 26px; font-weight: 800; }
+.advent-vzkaz p { margin: 6px 0 0; font-size: 14px; }
+#btn-advent.ceka { background: var(--zluta); animation: chce 1.2s ease-in-out infinite; }
+
+/* Letters from monsters */
+#btn-dopis.ceka { background: var(--zluta); animation: chce 1.2s ease-in-out infinite; }
+.dopis-papir { background: #fffdf3; border: 2.5px solid var(--ink); border-radius: 16px; padding: 10px 14px; box-shadow: 0 3px 0 var(--ink);
+  background-image: repeating-linear-gradient(transparent 0 33px, #e7dcf3 33px 35px); }
+.dopis-hlava { margin: 0; font-weight: 700; font-size: 16px; }
+.dopis-text { font-size: 28px; font-weight: 800; text-align: center; margin: 6px 0; line-height: 1.3; }
+.dopis-podpis { margin: 0; text-align: right; font-weight: 700; font-size: 15px; }
+.dopis-napoveda { text-align: center; font-weight: 600; margin: 8px 0 4px; font-size: 14px; }
+.dopis-moznosti { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.dopis-obrazek { min-width: 0; font-size: 38px; aspect-ratio: 1; border-radius: 16px; background: var(--papir); border: 2.5px solid var(--ink); box-shadow: 0 3px 0 var(--ink); }
+.dopis-obrazek.vybrano { background: var(--zluta); }
+.dopis-slovo { display: flex; justify-content: center; gap: 6px; margin: 12px 0 8px; }
+.dopis-slovo .policko { width: 40px; height: 48px; border-bottom: 4px solid var(--ink); font-size: 34px; font-weight: 800; text-align: center; line-height: 48px; }
+.dopis-pismena { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.pismenko { width: 52px; height: 56px; border-radius: 14px; font-size: 30px; font-weight: 800; background: #fff; border: 2.5px solid var(--ink); box-shadow: 0 3px 0 var(--ink); color: var(--ink); }
+.pismenko:disabled { opacity: .25; }
+.pismenko.spatne { animation: zatres .3s; background: #ffd6de; }
+
+/* Postcards from trips */
+.pohlednice { background: #fff; border: 2.5px solid var(--ink); border-radius: 16px; padding: 10px 14px; box-shadow: 0 3px 0 var(--ink); border-left: 10px solid #5fb4ff; }
+.pohlednice-obr { font-size: 64px; text-align: center; letter-spacing: 6px; background: linear-gradient(#bfe6ff, #fff3c4); border-radius: 12px; }
+#pohlednice-ok { display: block; width: 100%; margin-top: 6px; }
+
+/* Wallpapers and rugs */
+.tapety-nadpis { margin: 8px 4px 4px; font-size: 17px; }
+.tapety-mrizka { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.dlazdice.tapeta img { border-radius: 12px; }
+.dlazdice.tapeta.zamceno img { filter: grayscale(.8) brightness(.9); opacity: .6; }
+
+/* Cooking by recipe */
+.recept-text { font-size: 24px; }
+.kucharka-miska { text-align: center; font-size: 40px; min-height: 52px; letter-spacing: 2px; }
+.kucharka-suroviny { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.surovina { min-width: 0; aspect-ratio: 1; font-size: 40px; border-radius: 16px; background: #fff; border: 2.5px solid var(--ink); box-shadow: 0 3px 0 var(--ink); }
+.surovina.v-misce { background: #d3f9d8; opacity: .45; }
+.surovina.spatne { animation: zatres .3s; background: #ffd6de; }
+
+/* with the letter and the calendar buttons the top bar gets crowded on a phone */
+@media (max-width: 440px) {
+  #horni .skupina { gap: 5px; }
+  #horni .kulate { min-width: 44px; height: 46px; border-radius: 23px; padding: 0 7px; font-size: 20px; }
+  #horni .kulate span { font-size: 15px; }
+}

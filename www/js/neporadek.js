@@ -37,12 +37,13 @@ function freeFloorPoint(rand = Math.random) {
   return [2.2, 0.6];
 }
 function culprit() {
-  if (!S.album.length) return null;
+  const home = S.album.filter(a => !a.vylet); // a monster on a trip cannot make a mess
+  if (!home.length) return null;
   // grumpy monsters are the usual suspects
-  const w = S.album.map(a => 1.3 - moodOf(a).avg / 100);
+  const w = home.map(a => 1.3 - moodOf(a).avg / 100);
   let r = Math.random() * w.reduce((s, x) => s + x, 0);
-  for (let i = 0; i < w.length; i++) if ((r -= w[i]) <= 0) return S.album[i];
-  return S.album[0];
+  for (let i = 0; i < w.length; i++) if ((r -= w[i]) <= 0) return home[i];
+  return home[0];
 }
 function makeMess(kind) {
   const a = culprit();

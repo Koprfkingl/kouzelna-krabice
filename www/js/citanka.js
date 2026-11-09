@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { syllableHTML, newRound, hodnost, afterResult, statKey, dalsiHodnost } from './cteni.js';
 import { DOPLNKY, byIdD, wear } from './doplnky.js';
+import { hasSantaHat } from './advent.js';
 import { initAudio, play } from './audio.js';
 import { a as rod, hrac } from './hrac.js';
 import { S } from './stav.js';
@@ -157,7 +158,7 @@ function openWardrobe() {
   grid.innerHTML = '';
   e.doplnky ||= [];
   for (const d of DOPLNKY) {
-    const open = S.stars >= d.hvezdy;
+    const open = d.vanoce ? hasSantaHat() : S.stars >= d.hvezdy;
     const t = tile({ label: open ? d.nazev : `${d.hvezdy} ⭐`, icon: open ? d.ikona : '🔒', cls: open ? '' : 'zamceno', onClick: () => {
       if (!open) { speak(`Na ${d.nazev.toLowerCase()} potřebuješ ${d.hvezdy} hvězdiček. Čti s příšerkou!`); return; }
       const on = e.doplnky.includes(d.id);

@@ -128,6 +128,63 @@ const BUILD = {
     g.userData.spinBall = ball;
     return g;
   },
+  // souvenirs that monsters bring back from trips
+  musle() {
+    const g = new THREE.Group(), m = M(0xffc7b0, { roughness: 0.35, clearcoat: 1, sheen: 0.5, sheenColor: 0xffffff });
+    for (let i = 0; i < 7; i++) {
+      const a = (i - 3) * 0.26, rib = mesh(S(0.05, 16, 10), m, Math.sin(a) * 0.1, 0.03 + Math.cos(a) * 0.1, 0);
+      rib.scale.set(0.7, 2.2, 0.55); rib.rotation.z = -a; g.add(rib);
+    }
+    g.add(mesh(S(0.04, 12, 8), M(0xff9f86), 0, 0.03, 0.005));
+    g.rotation.x = -0.35;
+    return g;
+  },
+  siska() {
+    const g = new THREE.Group(), m = M(0x8a5a2b, { roughness: 0.85, clearcoat: 0 });
+    for (let row = 0; row < 7; row++) {
+      const y = 0.03 + row * 0.045, r = 0.085 * Math.sin((row + 1) / 8 * Math.PI) + 0.02;
+      for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + row * 0.4, sc = mesh(S(0.035, 8, 6), m, Math.cos(a) * r, y, Math.sin(a) * r); sc.scale.set(1, 0.6, 1); g.add(sc); }
+    }
+    g.add(mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.05, 6), m, 0, 0.36, 0));
+    return g;
+  },
+  krystal() {
+    const g = new THREE.Group();
+    const base = mesh(S(0.1, 10, 6), M(0x7a6a5a, { roughness: 0.9, clearcoat: 0, flatShading: true }), 0, 0.04, 0); base.scale.set(1.4, 0.5, 1.1); g.add(base);
+    [[0, 0.25, 0, 0, 0xb68cff], [0.07, 0.17, 0.03, -0.5, 0xd9b8ff], [-0.07, 0.16, -0.02, 0.45, 0x9f74ff], [0.02, 0.13, 0.08, 0.2, 0xe8d6ff]].forEach(([x, h, z, tilt, c]) => {
+      const k = mesh(new THREE.OctahedronGeometry(0.05, 0), M(c, { roughness: 0.15, clearcoat: 1, flatShading: true, emissive: c, emissiveIntensity: 0.15 }), x, 0.06 + h / 2, z);
+      k.scale.set(0.8, h / 0.1 * 1.0, 0.8); k.rotation.z = tilt; g.add(k);
+    });
+    return g;
+  },
+  pyramida() {
+    const g = new THREE.Group(), sand = M(0xe8c27a, { roughness: 0.9, clearcoat: 0 });
+    g.add(mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.03, 24), M(0xf2d79a, { roughness: 1, clearcoat: 0 }), 0, 0.015, 0));
+    const p = mesh(new THREE.ConeGeometry(0.17, 0.24, 4), M(0xd9a85b, { roughness: 0.8, flatShading: true }), 0, 0.15, 0); p.rotation.y = Math.PI / 4; g.add(p);
+    const p2 = mesh(new THREE.ConeGeometry(0.08, 0.12, 4), sand, 0.15, 0.09, 0.08); p2.rotation.y = Math.PI / 4; g.add(p2);
+    return g;
+  },
+  tucnak() {
+    const g = new THREE.Group(), black = M(0x2b2f3a, { roughness: 0.4 }), white = M(0xffffff, { roughness: 0.5 }), orange = M(0xff9a2a, { roughness: 0.4 });
+    const body = mesh(S(0.12, 24, 16), black, 0, 0.15, 0); body.scale.set(0.9, 1.3, 0.85); g.add(body);
+    const belly = mesh(S(0.1, 24, 16), white, 0, 0.14, 0.03); belly.scale.set(0.75, 1.15, 0.8); g.add(belly);
+    g.add(mesh(S(0.08, 20, 14), black, 0, 0.32, 0));
+    for (const s of [-1, 1]) {
+      g.add(mesh(S(0.022, 10, 8), white, s * 0.03, 0.34, 0.06)); g.add(mesh(S(0.011, 8, 6), M(0x111111), s * 0.03, 0.34, 0.078));
+      const wing = mesh(S(0.05, 12, 8), black, s * 0.1, 0.16, 0); wing.scale.set(0.35, 1.3, 0.8); wing.rotation.z = s * 0.25; g.add(wing);
+      const foot = mesh(S(0.035, 10, 6), orange, s * 0.04, 0.01, 0.05); foot.scale.set(1, 0.35, 1.4); g.add(foot);
+    }
+    g.add(rx(mesh(new THREE.ConeGeometry(0.02, 0.05, 10), orange, 0, 0.31, 0.09), Math.PI / 2));
+    return g;
+  },
+  mesic() {
+    const g = new THREE.Group(), rock = M(0xc9c6d6, { roughness: 0.95, clearcoat: 0, flatShading: true }), dark = M(0x9a96ab, { roughness: 1, clearcoat: 0 });
+    const r = mesh(new THREE.IcosahedronGeometry(0.13, 1), rock, 0, 0.12, 0); r.scale.set(1.2, 0.85, 1); g.add(r);
+    for (const [x, y, z] of [[0.06, 0.17, 0.08], [-0.08, 0.13, 0.08], [0.02, 0.21, -0.04], [0.11, 0.09, -0.04]]) { const c = mesh(S(0.025, 10, 6), dark, x, y, z); c.scale.y = 0.5; c.lookAt(0, 0.12, 0); g.add(c); }
+    g.add(mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.16, 6), M(0xdddddd, { metalness: 0.8 }), -0.02, 0.29, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.07, 0.045, 0.004), M(0xff4f8b), 0.015, 0.34, 0));
+    return g;
+  },
 };
 
 export const OZDOBY = [
@@ -143,6 +200,13 @@ export const OZDOBY = [
   { id: 'dort', nazev: 'Dort', ikona: '🎂' },
   { id: 'koule', nazev: 'Kouzelná koule', ikona: '🔮' },
   { id: 'globus', nazev: 'Glóbus', ikona: '🌍' },
+  // souvenirs from trips (not in the daily chest)
+  { id: 'musle', nazev: 'Mušle z moře', ikona: '🐚', suvenyr: true },
+  { id: 'siska', nazev: 'Šiška z lesa', ikona: '🌲', suvenyr: true },
+  { id: 'krystal', nazev: 'Krystal z hor', ikona: '💎', suvenyr: true },
+  { id: 'pyramida', nazev: 'Pyramida z pouště', ikona: '🏜️', suvenyr: true },
+  { id: 'tucnak', nazev: 'Tučňák ze severu', ikona: '🐧', suvenyr: true },
+  { id: 'mesic', nazev: 'Měsíční kámen', ikona: '🌙', suvenyr: true },
 ].map(o => ({ ...o, build: BUILD[o.id] }));
 export const ozdobaById = id => OZDOBY.find(o => o.id === id);
 export function buildOzdoba(id) {

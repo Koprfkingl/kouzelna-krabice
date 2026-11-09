@@ -13,4 +13,5 @@ export const S = {
   stars: store.get('kk-hvezdy', 0),
   roomPan: 0,           // room camera: -1 left … 1 right
   schovka: null,        // hide and seek in progress
+  boost: false,         // the next laser shot is a golden Laser Boost
 };

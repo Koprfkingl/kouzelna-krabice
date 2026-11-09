@@ -17,6 +17,14 @@ Každý krok kouzla je jedno tlačítko: **otevřít krabici → dát věc dovni
 - **Kniha kouzel** (📖 → 📕): do krabice jdou dát dvě věci najednou (➕ Přidat druhou věc). Šestnáct dvojic dá tajnou proměnu (liška + kytka = kvetoucí liška, ryba + láhev = rybička v láhvi…), ostatní dvojice se smíchají na novou příšerku. Objevená kouzla se zapisují do knihy, neobjevená ukazují nápovědu.
 - **Schovávaná se čtením** (🙈 u příšerky ze sbírky): příšerka se schová v pokojíčku a nechá vzkaz typu „JSEM POD POSTÝLKOU.“ Kdo ho přečte a klepne na správné místo, najde ji a dostane hvězdičku.
 - **Úkoly dne** (📅): každý den tři malé úkoly (čtení, kouzlení, péče nebo pokojíček). Když jsou hotové všechny, otevře se dárek s ozdobou do pokojíčku (medvídek, balónky, raketa, kostky s písmenky, duha…). Kalendář ukazuje splněné dny a řadu dní za sebou.
+- **Druhy příšerek** (od verze 2.0): kromě klasických chlupáčů se rodí i slizové (průsvitné, s kapkami a bublinkami), krystalové (z plošek, s krystaly na zádech), obláčkové a strašidýlka, která se vznášejí. Slizových je nejvíc.
+- **Miminka**: dvě příšerky v krabici najednou dostanou miminko. Zdědí druh po jednom z rodičů a barvu po obou. Je malé a má velké oči, s každou péčí povyroste a po deseti je dospělé.
+- **Dopisy od příšerek** (✉️ nahoře): jednou za den napíše některá příšerka dopis ve slabikách s otázkou. Dítě vybere obrázek a slovo poskládá z písmenek. Za odpověď je hvězdička.
+- **Výlety** (🎒 u příšerky ze sbírky): příšerka odjede k moři, do lesa, na hory, do pouště, na sever nebo do vesmíru a za 45 minut se vrátí s pohlednicí ke čtení a suvenýrem do pokojíčku (mušle, šiška, krystal, pyramida, tučňák, měsíční kámen).
+- **Vaření** (👩‍🍳 v nabídce): recept ve slabikách, do misky se dají správné suroviny, miska jde do krabice a laser uvaří palačinky, pizzu, polévku, zmrzlinu nebo ovocný salát. Příšerky ochutnají a jsou najedené.
+- **Tapety a koberce** (🎨 v pokojíčku): za hvězdičky se odemykají nové tapety (srdíčka, obláčky, sliz, lesík, vesmír) a koberce. Hvězdičky se neutrácejí, stačí je mít.
+- **Laser Boost** (🌟 u zavřené krabice): každých 5 hvězdiček dá jeden zlatý laser. Příšerka z něj je zlatá, věc přinese hvězdičku navíc, a jsou u toho ohňostroje. Žádné placení, „5 ⭐ místo 5 €“.
+- **Advent a Vánoce** (🎄 nahoře, od 1. prosince do Tří králů): adventní kalendář s 24 okénky, v každém věta ke čtení a hvězdička. V pokojíčku stojí stromeček, na který přibývají ozdoby, a za oknem sněží. Sezónní permice (zdarma) odměňuje počet otevřených okének: sněhulák, 3 Laser Boosty, zlatá hvězda na stromeček a Santova čepice do šatníku. Pro vyzkoušení jde datum nastavit v adrese: `?datum=2026-12-07`.
 - Na začátku se hra zeptá na jméno a jestli hraje holka nebo kluk (když se to přeskočí, je to Maruška). Jméno jde změnit v přehledu pro rodiče (📊).
 - Klepnutí na věc před krabicí ji rozpohybuje: rádio hraje, lampa svítí, fotoaparát blýskne, autíčko se otočí, příšerka se zachichotá. Kdo kliká jako o závod, dočká se sedmi různých legračních reakcí.
 - Hra mluví česky (hlasem telefonu) a funguje bez internetu.
@@ -81,6 +89,13 @@ Secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_AL
 - `www/js/cteni.js`: slova s obrázky rozdělená na slabiky, vzkazy, výběr úkolů a hodnosti
 - `www/js/doplnky.js`: doplňky pro příšerky (odměny za čtení)
 - `www/js/audio.js`: zvuky (syntetizované, bez souborů)
+- `www/js/mimi.js`: miminka ze dvou příšerek a jejich růst
+- `www/js/dopisy.js`: dopisy od příšerek a skládání slov z písmenek
+- `www/js/vylety.js`: výlety, pohlednice a suvenýry
+- `www/js/vareni.js`: recepty, suroviny a uvařená jídla
+- `www/js/tapety.js`: výběr tapet a koberců (vzory kreslí `room.js`)
+- `www/js/boost.js`: Laser Boost
+- `www/js/advent.js`: adventní kalendář, sezónní permice, stromeček a sníh
 - `www/modely/`: 3D modely, `www/nahledy/`: obrázky do nabídky, `www/textury/`: dřevo a HDR prostředí
 - `android/`: Android projekt (Capacitor)
 - `tests/hra.test.mjs`: automatický test celé hry

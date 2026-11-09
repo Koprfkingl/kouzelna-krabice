@@ -33,7 +33,7 @@ function srcOf(c) {
   return null; // photos go into frames instead
 }
 function savePokoj() {
-  if (!roomReady) return;
+  if (!roomReady) return store.set('kk-pokoj', pokoj); // the spots as loaded: decor is not back yet
   const spots = {};
   for (const [id, c] of Object.entries(decor)) { const s = srcOf(c); if (s) spots[id] = s; }
   pokoj.spots = spots;

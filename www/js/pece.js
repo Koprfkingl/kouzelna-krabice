@@ -7,6 +7,7 @@ import { choose, hideBubble, saveAlbum, setPhase, showBubble, speak, tile } from
 import { $, animate, centerOf, disposeObj, ease, store } from './util.js';
 import { camera, fill, key, scene, sparkles } from './scena.js';
 import { dayEvent } from './den.js';
+import { grow } from './mimi.js';
 
 const NEEDS = [
   { id: 'jidlo', icon: '🍎', label: 'Nakrmit', rate: 9, want: 'Mám hlad!' },
@@ -223,8 +224,10 @@ async function doCare(need) {
     ageCare(a);
     const say = await CARE[need.id](c, a);
     a.pece[need.id] = need.id === 'zdravi' ? 100 : Math.min(100, a.pece[need.id] + 45);
+    const grew = grow(c, a); // a baby grows a little with every bit of care
+    if (grew) floatUp(a.baby ? '📏' : '🎉', centerOf(c.obj).c, { n: 3, spread: 0.6, rise: 0.8 });
     saveAlbum();
-    showBubble(say); speak(say);
+    showBubble(grew ? say + ' ' + grew : say); speak(grew ? say + ' ' + grew : say);
     dayEvent('pece', { need: need.id });
   } finally { careBusy = false; S.busy = false; }
   if (S.phase === 'care') setPhase('care');

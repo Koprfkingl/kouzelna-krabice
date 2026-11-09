@@ -34,7 +34,83 @@ function star(g, x, y, r, n = 5) {
   g.fill();
 }
 
-function wallpaper() {
+// Wallpapers and rugs the child can pick for stars (tapety.js); the first of each is the original look.
+const seeded = seed => { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; };
+const heart = (g, x, y, r) => { g.beginPath(); g.moveTo(x, y + r * 0.9); g.bezierCurveTo(x - r * 1.6, y - r * 0.2, x - r * 0.6, y - r * 1.3, x, y - r * 0.4); g.bezierCurveTo(x + r * 0.6, y - r * 1.3, x + r * 1.6, y - r * 0.2, x, y + r * 0.9); g.fill(); };
+const blob = (g, x, y, r) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); };
+const WALLS = {
+  srdicka(g, w, h) {
+    g.fillStyle = '#fde8ef'; g.fillRect(0, 0, w, h);
+    for (let x = 0; x < w; x += 128) { g.fillStyle = 'rgba(255,190,214,0.45)'; g.fillRect(x, 0, 64, h); }
+    const r = seeded(11);
+    for (let i = 0; i < 22; i++) { g.fillStyle = ['#ff6f9f', '#ffb3cb', '#c88cff'][i % 3]; heart(g, r() * w, r() * h, 10 + r() * 6); }
+  },
+  oblacky(g, w, h) {
+    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#bfe3ff'); gr.addColorStop(1, '#e6f4ff');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    const r = seeded(5); g.fillStyle = 'rgba(255,255,255,0.95)';
+    for (let i = 0; i < 9; i++) { const x = r() * w, y = r() * h, s = 0.6 + r() * 0.6; for (const [dx, dy, rr] of [[0, 0, 22], [22, -8, 26], [46, 2, 20], [24, 10, 22]]) blob(g, x + dx * s, y + dy * s, rr * s); }
+    for (let i = 0; i < 5; i++) { g.fillStyle = '#ffd84d'; star(g, r() * w, r() * h, 8); g.fillStyle = 'rgba(255,255,255,0.95)'; }
+  },
+  lesik(g, w, h) {
+    g.fillStyle = '#e8f6e3'; g.fillRect(0, 0, w, h);
+    const r = seeded(3);
+    for (let i = 0; i < 14; i++) {
+      const x = r() * w, y = r() * h, s = 0.7 + r() * 0.5;
+      g.fillStyle = '#a0704a'; g.fillRect(x - 3 * s, y + 18 * s, 6 * s, 14 * s);
+      g.fillStyle = ['#7cc576', '#5fae5a', '#9ad48f'][i % 3];
+      g.beginPath(); g.moveTo(x, y - 22 * s); g.lineTo(x - 18 * s, y + 20 * s); g.lineTo(x + 18 * s, y + 20 * s); g.fill();
+    }
+    for (let i = 0; i < 10; i++) { g.fillStyle = '#ff6f6f'; blob(g, r() * w, r() * h, 5); }
+  },
+  vesmir(g, w, h) {
+    g.fillStyle = '#2b2a5c'; g.fillRect(0, 0, w, h);
+    const r = seeded(9);
+    for (let i = 0; i < 70; i++) { g.fillStyle = `rgba(255,255,255,${0.4 + r() * 0.6})`; blob(g, r() * w, r() * h, 1 + r() * 2); }
+    for (let i = 0; i < 10; i++) { g.fillStyle = '#ffe36e'; star(g, r() * w, r() * h, 7 + r() * 5); }
+    for (const [c, ring] of [['#ff9f6e', true], ['#7fd0ff', false], ['#c99bff', true]]) {
+      const x = r() * w, y = r() * h, rr = 16 + r() * 10; g.fillStyle = c; blob(g, x, y, rr);
+      if (ring) { g.strokeStyle = '#ffe9b0'; g.lineWidth = 4; g.beginPath(); g.ellipse(x, y, rr * 1.7, rr * 0.45, -0.3, 0, Math.PI * 2); g.stroke(); }
+    }
+  },
+  sliz(g, w, h) {
+    g.fillStyle = '#eaffd6'; g.fillRect(0, 0, w, h);
+    // slime dripping from the top of each tile
+    for (let x = 0; x < w; x += 32) {
+      const len = 30 + ((x * 37) % 90);
+      g.fillStyle = ['#7ee05a', '#5fd4a8', '#b8f05a'][(x / 32) % 3];
+      g.fillRect(x, 0, 32, 18); g.fillRect(x + 8, 0, 16, len); blob(g, x + 16, len, 9);
+    }
+    const r = seeded(13);
+    for (let i = 0; i < 16; i++) { g.fillStyle = 'rgba(126,224,90,0.35)'; blob(g, r() * w, 140 + r() * (h - 140), 6 + r() * 10); }
+  },
+};
+const RUGS = {
+  duha(g, w) { ['#ff6f6f', '#ffa94d', '#ffe066', '#69db7c', '#4dabf7', '#9775fa', '#fff3f7'].forEach((c, i, a) => { g.fillStyle = c; blob(g, w / 2, w / 2, w / 2 * (1 - i / a.length)); }); },
+  kytka(g, w) {
+    g.fillStyle = '#fff6d6'; blob(g, w / 2, w / 2, w / 2);
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; g.fillStyle = i % 2 ? '#ffb3cb' : '#ff8fb3'; blob(g, w / 2 + Math.cos(a) * w * 0.27, w / 2 + Math.sin(a) * w * 0.27, w * 0.17); }
+    g.fillStyle = '#ffd43b'; blob(g, w / 2, w / 2, w * 0.15);
+  },
+  sliz(g, w) {
+    g.fillStyle = '#c3f7a0'; blob(g, w / 2, w / 2, w / 2);
+    g.fillStyle = '#8be05a'; blob(g, w / 2, w / 2, w * 0.4);
+    const r = seeded(21);
+    for (let i = 0; i < 14; i++) { g.fillStyle = ['#5fd46a', '#b4f08a', '#e8ffd9'][i % 3]; blob(g, w * (0.2 + r() * 0.6), w * (0.2 + r() * 0.6), 10 + r() * 22); }
+  },
+  kocka(g, w) {
+    g.fillStyle = '#ffd8a8'; blob(g, w / 2, w / 2, w / 2);
+    g.fillStyle = '#ffc078'; for (const s of [-1, 1]) { g.beginPath(); g.moveTo(w / 2 + s * w * 0.18, w * 0.2); g.lineTo(w / 2 + s * w * 0.4, w * 0.05); g.lineTo(w / 2 + s * w * 0.38, w * 0.33); g.fill(); }
+    g.fillStyle = '#3b2552'; for (const s of [-1, 1]) blob(g, w / 2 + s * w * 0.15, w * 0.45, w * 0.05);
+    g.fillStyle = '#ff8fb3'; blob(g, w / 2, w * 0.56, w * 0.035);
+    g.strokeStyle = '#3b2552'; g.lineWidth = 5;
+    for (const s of [-1, 1]) for (const d of [-0.04, 0.03]) { g.beginPath(); g.moveTo(w / 2 + s * w * 0.08, w * (0.6 + d)); g.lineTo(w / 2 + s * w * 0.32, w * (0.57 + d * 2)); g.stroke(); }
+  },
+};
+export const WALL_IDS = ['zakladni', ...Object.keys(WALLS)], RUG_IDS = ['zakladni', ...Object.keys(RUGS)];
+
+function wallpaper(id = 'zakladni') {
+  if (WALLS[id]) return canvasTex(512, 512, WALLS[id], [4, 2.6]);
   return canvasTex(512, 512, (g, w, h) => {
     // soft mint stripes
     g.fillStyle = '#f3e9f2'; g.fillRect(0, 0, w, h);
@@ -65,12 +141,15 @@ function skyTexture() {
   });
 }
 
-function rugTexture() {
+function rugTexture(id = 'zakladni') {
   return canvasTex(512, 512, (g, w) => {
-    const cols = ['#f7c6d9', '#fbe3a4', '#bfe6dd', '#cdbcf0', '#f7c6d9', '#fff3f7'];
-    for (let i = 0; i < cols.length; i++) {
-      g.fillStyle = cols[i];
-      g.beginPath(); g.arc(w / 2, w / 2, w / 2 * (1 - i / cols.length), 0, Math.PI * 2); g.fill();
+    if (RUGS[id]) RUGS[id](g, w);
+    else {
+      const cols = ['#f7c6d9', '#fbe3a4', '#bfe6dd', '#cdbcf0', '#f7c6d9', '#fff3f7'];
+      for (let i = 0; i < cols.length; i++) {
+        g.fillStyle = cols[i];
+        g.beginPath(); g.arc(w / 2, w / 2, w / 2 * (1 - i / cols.length), 0, Math.PI * 2); g.fill();
+      }
     }
     // woolly noise
     const img = g.getImageData(0, 0, w, w);
@@ -359,6 +438,13 @@ export function makeRoom(tex) {
   rug.position.set(0, 0.006, -0.25);
   rug.receiveShadow = true;
   room.add(rug);
+  // new wallpaper or rug (tapety.js)
+  // (the mesh's material at that moment: the cartoon look replaces the original one)
+  const swap = (mesh, tex) => { const mat = mesh.material, old = mat.map; mat.map = tex; mat.needsUpdate = true; if (old) old.dispose(); };
+  room.userData.setWall = id => swap(back, wallpaper(id));
+  room.userData.setRug = id => swap(rug, rugTexture(id));
+  room.userData.wallTex = id => wallpaper(id).image; // canvases for the previews
+  room.userData.rugTex = id => rugTexture(id).image;
 
   // Spots for real furniture models (filled in by main.js once they load)
   room.userData.props = [

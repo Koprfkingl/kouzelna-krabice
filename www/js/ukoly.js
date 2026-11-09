@@ -92,6 +92,7 @@ export function lastDays(n = 7) {
 
 // The chest gives the decorations in order, then repeats random ones the child does not have placed twice.
 export function chestReward(owned) {
-  const next = OZDOBY.find(o => !owned.includes(o.id));
-  return next || OZDOBY[Math.floor(Math.random() * OZDOBY.length)];
+  const chest = OZDOBY.filter(o => !o.suvenyr); // souvenirs come only from trips
+  const next = chest.find(o => !owned.includes(o.id));
+  return next || chest[Math.floor(Math.random() * chest.length)];
 }

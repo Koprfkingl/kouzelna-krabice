@@ -31,6 +31,8 @@
   </div>
   <div id="titulek">Kouzelná krabice</div>
   <div class="skupina">
+    <button id="btn-dopis" class="kulate" aria-label="Dopis od příšerky" hidden>✉️</button>
+    <button id="btn-advent" class="kulate" aria-label="Adventní kalendář" hidden>🎄</button>
     <button id="btn-den" class="kulate" aria-label="Úkoly dne">📅<span id="den-stav"></span></button>
     <button id="btn-zvuk" class="kulate" aria-label="Zvuk">🔊</button>
   </div>
@@ -143,6 +145,70 @@
     <div id="den-ukoly" class="ukoly"></div>
     <button id="den-truhla" class="truhla"></button>
     <p id="den-odmena" class="napoveda" hidden></p>
+  </div>
+</div>
+
+<div id="kucharka" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2 id="kucharka-nazev">Recept</h2><button id="kucharka-zavrit" class="kulate">✕</button></div>
+    <div class="dopis-papir"><div id="kucharka-text" class="dopis-text recept-text"></div></div>
+    <p id="kucharka-napoveda" class="dopis-napoveda"></p>
+    <div id="kucharka-miska" class="kucharka-miska">🥣</div>
+    <div id="kucharka-suroviny" class="kucharka-suroviny"></div>
+  </div>
+</div>
+
+<div id="tapety" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>🎨 Tapety a koberce</h2><button id="tapety-zavrit" class="kulate">✕</button></div>
+    <p id="tapety-stav" class="dopis-napoveda"></p>
+    <h3 class="tapety-nadpis">Tapeta</h3>
+    <div id="tapety-zed" class="tapety-mrizka"></div>
+    <h3 class="tapety-nadpis">Koberec</h3>
+    <div id="tapety-koberec" class="tapety-mrizka"></div>
+  </div>
+</div>
+
+<div id="pohlednice" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>🎒 Pohlednice z výletu</h2></div>
+    <div class="pohlednice">
+      <div id="pohlednice-obr" class="pohlednice-obr"></div>
+      <div id="pohlednice-text" class="dopis-text"></div>
+      <p id="pohlednice-podpis" class="dopis-podpis"></p>
+    </div>
+    <p id="pohlednice-dar" class="dopis-napoveda"></p>
+    <button id="pohlednice-ok" class="velke">Super! 💜</button>
+  </div>
+</div>
+
+<div id="dopis" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>✉️ Dopis</h2><button id="dopis-zavrit" class="kulate">✕</button></div>
+    <div class="dopis-papir">
+      <p id="dopis-hlava" class="dopis-hlava"></p>
+      <div id="dopis-text" class="dopis-text"></div>
+      <p id="dopis-podpis" class="dopis-podpis"></p>
+    </div>
+    <p id="dopis-napoveda" class="dopis-napoveda"></p>
+    <div id="dopis-moznosti" class="dopis-moznosti"></div>
+    <div id="dopis-skladani" hidden>
+      <div id="dopis-slovo" class="dopis-slovo"></div>
+      <div id="dopis-pismena" class="dopis-pismena"></div>
+    </div>
+  </div>
+</div>
+
+<div id="advent" class="okno" hidden>
+  <div class="okno-obsah">
+    <div class="radek"><h2>🎄 Adventní kalendář</h2><button id="advent-zavrit" class="kulate">✕</button></div>
+    <div class="permice">
+      <div class="permice-nadpis"><b>🎟️ Sezónní permice</b> <span id="permice-stav"></span> <small>zdarma 😉</small></div>
+      <div class="permice-lista"><div id="permice-pruh"></div></div>
+      <div id="permice-odmeny" class="permice-odmeny"></div>
+    </div>
+    <div id="advent-vzkaz" class="advent-vzkaz" hidden></div>
+    <div id="advent-mrizka" class="advent-mrizka"></div>
   </div>
 </div>
 

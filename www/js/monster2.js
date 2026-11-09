@@ -93,7 +93,7 @@ export function makeMonster2(seed, opts = {}) {
   const hsl = {}; baseColor.getHSL(hsl);
   baseColor.setHSL(hsl.h, Math.max(0.5, hsl.s), Math.min(0.7, Math.max(0.48, hsl.l)));
   const accent = new THREE.Color().setHSL((hsl.h + pick([0.08, 0.5, 0.33, 0.66, 0.15]) + r() * 0.06) % 1, 0.75, chance(0.5) ? 0.4 : 0.66);
-  const style = monsterStyle(seed, opts.gen || 2);
+  const style = opts.style || monsterStyle(seed, opts.gen || 2); // a baby takes its kind from a parent
   if (style === 'sliz') { baseColor.set(pick(SLIME)); if (opts.tint) baseColor.lerp(new THREE.Color(opts.tint), 0.35); }
   if (style === 'mracek') baseColor.lerp(new THREE.Color(0xffffff), 0.6);
   if (style === 'duch') baseColor.lerp(new THREE.Color(0xfaf6ff), 0.75);
@@ -187,7 +187,7 @@ export function makeMonster2(seed, opts = {}) {
   const lidMat = softMat(baseColor.clone().multiplyScalar(0.85));
   const eyes = [];
   const faceY = (shape === 'tall' ? 0.25 : 0.12) * sy + r() * 0.06;
-  const big = eyeCount === 1 ? 0.21 + r() * 0.06 : eyeCount === 2 ? 0.13 + r() * 0.05 : eyeCount === 3 ? 0.105 + r() * 0.03 : 0.085 + r() * 0.02;
+  const big = (eyeCount === 1 ? 0.21 + r() * 0.06 : eyeCount === 2 ? 0.13 + r() * 0.05 : eyeCount === 3 ? 0.105 + r() * 0.03 : 0.085 + r() * 0.02) * (opts.baby ? 1 + 0.35 * (1 - (opts.rust || 0)) : 1); // babies have big eyes, smaller as they grow
   let layout;
   if (eyeCount === 1) layout = [[0, 0, 1]];
   else if (eyeCount === 2) layout = [[-1, 0, 1], [1, 0, 1]];

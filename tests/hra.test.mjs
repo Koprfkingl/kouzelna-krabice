@@ -23,7 +23,7 @@ const server = http.createServer((req, res) => {
   });
 });
 await new Promise(r => server.listen(0, r));
-const URL0 = `http://localhost:${server.address().port}/?demo&okamzite`;
+const URL0 = `http://localhost:${server.address().port}/?demo&okamzite&datum=2026-12-07`; // in Advent, so the calendar and the tree are tested too
 
 const failures = [];
 let step = '';
@@ -46,6 +46,12 @@ const clickTile = (grid, txt) => page.evaluate(([g, t]) => {
   if (el) el.click();
   return !!el;
 }, [grid, txt]);
+// every text the bubble showed since watchBubble() (a later message, like a finished daily task, can replace it quickly)
+const watchBubble = () => page.evaluate(() => {
+  window.__bub = [];
+  (window.__bubObs ||= new MutationObserver(() => window.__bub.push(document.getElementById('bublina').textContent))).observe(document.getElementById('bublina'), { childList: true, characterData: true, subtree: true });
+});
+const sawBubble = re => page.evaluate(src => window.__bub.some(t => new RegExp(src).test(t)), re.source);
 const extras = async () => Promise.all((await page.$$('#akce-dalsi button')).map(async b => ({ b, t: (await b.textContent()).trim() })));
 
 async function run(name, fn) {
@@ -91,6 +97,131 @@ try {
     await shot('1-promena');
   });
 
+  await run('Miminko ze dvou příšerek', async () => {
+    await kk(async () => { const k = window.__kk; await k.choose({ type: 'monster', monster: { seed: 9001, name: 'Knoflík', tint: null, gen: 2 } }); });
+    await ready();
+    await main(); // the monster from the collection stands in front: into the box
+    await kk(() => [...document.querySelectorAll('#akce-dalsi button')].find(b => /druhou/.test(b.textContent)).click()); await page.waitForTimeout(600);
+    await kk(async () => { const k = window.__kk; await k.choose({ type: 'monster', monster: { seed: 777, name: 'Bublinka', tint: null, gen: 3 } }); });
+    await ready();
+    check(await phase() === 'closed', 'obě příšerky jsou v krabici');
+    await watchBubble();
+    await main(); await main(3500);
+    check(await sawBubble(/mají miminko/), 'bublina hlásí miminko: ' + (await kk(() => window.__bub.join(' | '))).slice(0, 300));
+    await page.waitForTimeout(4000); // the baby joins the collection
+    const baby = await kk(() => { const c = window.__kk.current(), e = window.__kk.album().find(a => a.seed === c.monster.seed); return e && { baby: e.baby, rust: e.rust, style: e.style, rodice: e.rodice }; });
+    check(!!baby && baby.baby === true && baby.rust === 0, 'miminko je ve sbírce a je malé');
+    check(!!baby && baby.rodice.join() === 'Knoflík,Bublinka' && !!baby.style, 'miminko zná rodiče a zdědilo druh');
+    const grown = await kk(async () => {
+      const { grow } = await import('/js/mimi.js');
+      const c = window.__kk.current(), e = window.__kk.album().find(a => a.seed === c.monster.seed), s0 = c.obj.scale.x;
+      let last = '';
+      for (let i = 0; i < 10; i++) last = grow(c, e) || last;
+      return { last, ratio: c.obj.scale.x / s0, baby: !!e.baby };
+    });
+    check(!grown.baby && /vyrostla/.test(grown.last), 'po deseti péčích miminko vyrostlo');
+    check(Math.abs(grown.ratio - 1 / 0.6) < 0.01, 'a je větší');
+    await shot('2a-miminko');
+  });
+
+  await run('Laser Boost', async () => {
+    await kk(async () => { const b = await import('/js/boost.js'); b.addBoost(1); });
+    await kk(async () => { const k = window.__kk; await k.choose({ type: 'item', item: k.ITEMS.find(i => i.id === 'auticko') }); });
+    await ready();
+    const boost = (await extras()).find(e => /Laser Boost/.test(e.t));
+    check(!!boost, 'u zavřené krabice je tlačítko Laser Boost');
+    await watchBubble();
+    await kk(() => [...document.querySelectorAll('#akce-dalsi button')].find(b => /Laser Boost/.test(b.textContent)).click());
+    await ready();
+    check(await phase() === 'done', 'zlatý laser proměnil věc');
+    await main(3500);
+    check(await sawBubble(/Laser Boost/), 'bublina slaví Laser Boost');
+    check(await kk(async () => (await import('/js/boost.js')).boostCount()) === 0, 'boost se spotřeboval');
+    const c = await kk(() => { const c = window.__kk.current(); return c && { type: c.type, monster: c.monster && { tint: c.monster.tint } }; });
+    if (c && c.type === 'monster') check(c.monster.tint === 0xffd34d, 'příšerka z boostu je zlatá');
+    await shot('2b-boost');
+  });
+
+  await run('Adventní kalendář', async () => {
+    check(await kk(() => !document.getElementById('btn-advent').hidden), 'v prosinci je vidět tlačítko kalendáře');
+    const stars0 = await kk(() => Number(localStorage.getItem('kk-hvezdy') || 0));
+    await kk(() => document.getElementById('btn-advent').click()); await page.waitForTimeout(500);
+    check(await kk(() => document.querySelectorAll('#advent-mrizka .okenko').length) === 24, 'kalendář má 24 okének');
+    await kk(() => document.querySelector('#advent-mrizka .okenko.zamcene').click()); await page.waitForTimeout(300);
+    check(/ještě nejde/.test(await text('#advent-vzkaz')), 'budoucí okénko je zamčené');
+    await kk(() => document.querySelector('#advent-mrizka .okenko.dnes').click()); await page.waitForTimeout(500);
+    check(JSON.parse(await kk(() => localStorage.getItem('kk-advent'))).opened.includes(7), 'dnešní okénko je otevřené');
+    check(await kk(() => Number(localStorage.getItem('kk-hvezdy') || 0)) === stars0 + 1, 'okénko dalo hvězdičku');
+    check(!!(await text('#advent-vzkaz')).trim(), 'okénko ukazuje větu ke čtení');
+    await shot('2c-advent');
+    await kk(() => document.getElementById('advent-zavrit').click()); await page.waitForTimeout(300);
+  });
+
+  await run('Dopis od příšerky', async () => {
+    check(await kk(async () => (await import('/js/dopisy.js')).novyDopis()), 'příšerka napsala dopis');
+    check(await kk(() => !document.getElementById('btn-dopis').hidden), 'nahoře je obálka');
+    const stars0 = await kk(() => Number(localStorage.getItem('kk-hvezdy') || 0));
+    await kk(() => document.getElementById('btn-dopis').click()); await page.waitForTimeout(400);
+    check(!!(await text('#dopis-text')).trim(), 'dopis jde přečíst');
+    await kk(() => document.querySelector('#dopis-moznosti button').click()); await page.waitForTimeout(300);
+    const word = await kk(() => [...document.querySelectorAll('#dopis-slovo .policko')].length);
+    check(word >= 3, 'slovo má políčka na písmenka');
+    await shot('2d-dopis');
+    // wrong letters do nothing, the right ones fill the boxes one by one
+    for (let i = 0; i < word; i++) {
+      await kk(() => {
+        // the right letter is the one that fills the next box: try each card until one sticks
+        const boxes = [...document.querySelectorAll('#dopis-slovo .policko')], n = boxes.filter(b => b.textContent).length;
+        for (const b of document.querySelectorAll('#dopis-pismena button:not(:disabled)')) { b.click(); if (boxes.filter(x => x.textContent).length > n) break; }
+      });
+      await page.waitForTimeout(150);
+    }
+    await page.waitForTimeout(900);
+    check(await kk(() => document.getElementById('dopis').hidden), 'odpověď odešla');
+    check(/dostala tvou odpověď/.test(await text('#bublina')), 'příšerka děkuje');
+    check(await kk(() => Number(localStorage.getItem('kk-hvezdy') || 0)) === stars0 + 1, 'za dopis je hvězdička');
+    check(await kk(() => document.getElementById('btn-dopis').hidden), 'obálka zmizela');
+  });
+
+  await run('Vaření podle receptu', async () => {
+    await kk(() => window.__kk.showPicker()); await page.waitForTimeout(400);
+    await kk(() => [...document.querySelectorAll('#zalozky-zdroj button')].find(b => /Vaření/.test(b.textContent)).click()); await page.waitForTimeout(300);
+    check(await clickTile('#mrizka-zdroj', 'Pizza'), 'v kuchařce je pizza');
+    await page.waitForTimeout(400);
+    check(await kk(() => !document.getElementById('kucharka').hidden), 'recept je otevřený');
+    check(/PI|pi/.test(await text('#kucharka-text')), 'recept jde přečíst');
+    await kk(() => document.querySelector('#kucharka-suroviny [data-k="cokolada"]')?.click() || document.querySelector('#kucharka-suroviny button:not([data-k="mouka"]):not([data-k="rajce"]):not([data-k="syr"])').click());
+    check(/není/.test(await text('#kucharka-napoveda')), 'špatná surovina se nepřidá');
+    for (const k of ['mouka', 'rajce', 'syr']) { await kk(k => document.querySelector(`#kucharka-suroviny [data-k="${k}"]`).click(), k); await page.waitForTimeout(150); }
+    await page.waitForTimeout(1200); await ready();
+    check(await phase() === 'closed', 'miska je v krabici');
+    const before = await kk(() => window.__kk.album().map(a => a.pece.jidlo));
+    await watchBubble();
+    await main(); await main(3500);
+    check(await kk(() => { const c = window.__kk.current(); return c.type === 'jidlo' && !c.miska && c.id === 'pizza'; }), 'laser uvařil pizzu');
+    check(await sawBubble(/Uvařil/), 'bublina hlásí uvařené jídlo');
+    check(await kk(() => window.__kk.album().every(a => a.vylet || a.pece.jidlo === 100)) && before.length > 0, 'příšerky se najedly');
+    await shot('2f-vareni');
+  });
+
+  await run('Tapety a koberce', async () => {
+    await kk(() => window.__kk.setStars(30));
+    await kk(() => window.__kk.openRoom()); await ready(1500);
+    const btn = (await extras()).find(e => /Tapety/.test(e.t));
+    check(!!btn, 'v pokojíčku je tlačítko Tapety a koberce');
+    await kk(() => [...document.querySelectorAll('#akce-dalsi button')].find(b => /Tapety/.test(b.textContent)).click()); await page.waitForTimeout(500);
+    check(await kk(() => document.querySelectorAll('#tapety-zed .dlazdice').length) >= 5, 'je z čeho vybírat');
+    await kk(() => [...document.querySelectorAll('#tapety-zed .dlazdice')].find(b => /Sliz/.test(b.textContent)).click());
+    await kk(() => [...document.querySelectorAll('#tapety-koberec .dlazdice')].find(b => /Duhový/.test(b.textContent)).click());
+    await kk(() => [...document.querySelectorAll('#tapety-zed .dlazdice')].find(b => /🔒/.test(b.textContent)).click());
+    const look = await kk(() => JSON.parse(localStorage.getItem('kk-tapety') || '{}'));
+    check(look.zed === 'sliz' && look.koberec === 'duha', 'nová tapeta a koberec jsou uložené');
+    check(/odemkne/.test(await text('#bublina')), 'zamčená tapeta řekne, kolik hvězdiček chybí');
+    await kk(() => document.getElementById('tapety-zavrit').click()); await page.waitForTimeout(800);
+    await shot('2g-tapety');
+    await main(); // back to the box
+  });
+
   await run('Kniha kouzel', async () => {
     await kk(async () => { const k = window.__kk; await k.choose({ type: 'item', item: k.ITEMS.find(i => i.id === 'liska') }); });
     await ready();
@@ -111,7 +242,8 @@ try {
   const albumMonster = async () => {
     await page.click('#btn-album'); await page.waitForTimeout(400);
     await page.click('#album-zalozky [data-tab="sbirka"]'); await page.waitForTimeout(300);
-    await page.click('#album-mrizka .dlazdice'); await ready();
+    // the monster from the start (seed 9001), not the baby born earlier
+    await kk(() => { const i = window.__kk.album().findIndex(a => a.seed === 9001); document.querySelectorAll('#album-mrizka .dlazdice')[i].click(); }); await ready();
   };
   const NEED_ICON = { jidlo: '🍎', piti: '🥤', spanek: '😴', mazleni: '🤗', hra: '⚽', zdravi: '🩹' };
 
@@ -201,6 +333,25 @@ try {
     check((await kk(() => window.__kk.messCount())) === 0 && await phase() === 'pokoj', 'je uklizeno');
     await shot('7-neporadek');
     await main();
+  });
+
+  await run('Výlet s pohlednicí', async () => {
+    await albumMonster();
+    const trip = (await extras()).find(e => /výlet/.test(e.t));
+    check(!!trip, 'u příšerky je tlačítko Poslat na výlet');
+    await kk(() => [...document.querySelectorAll('#akce-dalsi button')].find(b => /výlet/.test(b.textContent)).click());
+    await page.waitForSelector('#krok-vyber:not([hidden])', { timeout: 60000 });
+    check(await kk(() => !!window.__kk.album().find(a => a.seed === 9001).vylet), 'příšerka je na výletě');
+    check(/jede/.test(await text('#bublina')), 'bublina říká, kam jede');
+    const n0 = await kk(() => JSON.parse(localStorage.getItem('kk-pokoj') || '{}').ozdoby?.length || 0);
+    await kk(async () => (await import('/js/vylety.js')).checkTrips(true)); // pretend the time is up
+    await page.waitForTimeout(500);
+    check(await kk(() => !document.getElementById('pohlednice').hidden), 'přišla pohlednice');
+    check(!!(await text('#pohlednice-text')).trim() && /Suvenýr/.test(await text('#pohlednice-dar')), 'pohlednice jde přečíst a je u ní suvenýr');
+    check(await kk(() => JSON.parse(localStorage.getItem('kk-pokoj') || '{}').ozdoby?.length || 0) === n0 + 1, 'suvenýr je v pokojíčku');
+    check(await kk(() => !window.__kk.album().find(a => a.seed === 9001).vylet), 'příšerka je zpátky');
+    await shot('2e-pohlednice');
+    await kk(() => document.getElementById('pohlednice-ok').click()); await page.waitForTimeout(300);
   });
 
   await run('Úkoly dne a dárek', async () => {
