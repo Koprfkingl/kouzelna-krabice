@@ -35,7 +35,7 @@ import { initTapety, openTapety } from './tapety.js';
 import { initVylety, minutesLeft, onTrip, sendOnTrip, tripWhere } from './vylety.js';
 import { boostCount, boostParty, boosted, useBoost } from './boost.js';
 import { moveFoch, vitrinaTarget, vitrinaTip, vitrinaTitle } from './vitrina.js';
-import { makeMess, messCount, restoreMess, tapMess, uklidPanel, updateMess } from './neporadek.js';
+import { makeMess, messCount, messObjects, restoreMess, tapMess, uklidPanel, updateMess } from './neporadek.js';
 
 // ---------- Building things ----------
 const gltfCache = {};
@@ -1380,7 +1380,11 @@ async function placeProps() {
       const g = await buildItem({ ...it, file: 'pokoj/' + it.file, size: p.size, rot: p.rot, float: 0, anim: null });
       g.position.copy(p.pos);
       room.add(g);
-      if (p.id === 'kytka') room.userData.swaying.push(g);
+      p.obj = g;
+      if (p.id === 'kytka') { // only the leaves sway in the breeze, the pot stays put
+        const leaves = g.getObjectByName('leaves');
+        if (leaves) room.userData.swaying.push(leaves);
+      }
       if (p.spot) {
         g.updateMatrixWorld(true);
         const bb = new THREE.Box3().setFromObject(g, true);
@@ -1417,7 +1421,7 @@ async function start() {
   checkForUpdate();
 
   if (params.has('nahledy')) { window.__kk = { ITEMS, putOnStage, spinner, camera, renderer, resize }; $('nacitani').classList.add('pryc'); return; }
-  if (params.has('demo')) { window.__kk = { readRound, choose, putOnStage, makeMess, messCount, tapMess, current: () => S.current, ITEMS, newMonsterSpec, setPhase, phase: () => S.phase, startSpecial, album: () => S.album, openRoom, startSchovka, schovka: () => S.schovka, dayEvent, den: () => den, openDen, kniha: () => kniha, second: () => S.second, LID_STEPS, fireLaser, showPicker, setStars: n => { S.stars = n; }, room, decor: () => decor, placeInRoom, spots: () => room.userData.spots, setAlbum: a => { S.album = a; saveAlbum(); }, renderer, scene, camera, box,
+  if (params.has('demo')) { window.__kk = { readRound, choose, putOnStage, makeMess, messCount, tapMess, messObjects, current: () => S.current, ITEMS, newMonsterSpec, setPhase, phase: () => S.phase, startSpecial, album: () => S.album, openRoom, startSchovka, schovka: () => S.schovka, dayEvent, den: () => den, openDen, kniha: () => kniha, second: () => S.second, LID_STEPS, fireLaser, showPicker, setStars: n => { S.stars = n; }, room, decor: () => decor, placeInRoom, spots: () => room.userData.spots, setAlbum: a => { S.album = a; saveAlbum(); }, renderer, scene, camera, box,
     screen: which => { const v = (which === 'box' ? box.localToWorld(new THREE.Vector3(0, 0.9, 0)) : centerOf(S.current.obj).c).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; } }; }
 
   $('start').hidden = false;

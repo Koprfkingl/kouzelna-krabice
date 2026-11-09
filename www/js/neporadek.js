@@ -31,26 +31,35 @@ const EXCUSES = ['Ale já si chci hrát!', 'Nechce se mi…', 'Až potom!', 'To 
 
 // ---------- making a mess ----------
 // places on both sides of the box and the stand, so a mess is seen right away (a phone shows a narrow strip)
-const VIEW_SPOTS = [[-1.25, -1.45], [1.3, -1.4], [-1.05, -0.3], [1.05, -0.25], [-1.2, 0.3], [1.2, 0.35]];
-function viewPoint(gap) {
-  const taken = [...Object.values(decor).map(c => c.holder.position), ...state.list.map(m => new THREE.Vector3(m.x, 0, m.z))];
+const VIEW_SPOTS = [[-1.38, -1.3], [1.32, -1.35], [-1.37, -0.3], [1.29, -0.25], [-1.37, 0.35], [1.3, 0.4]];
+// how far each thing reaches on the floor, so nothing is placed into something else
+const REACH = { hracka: 0.32, louze: 0.34, shozeno: 0.4 };
+const PILLOW = { x: -2.65, z: -1.3, r: 0.42 }; // where the bed mess throws the pillow
+const occupied = () => [
+  ...room.userData.props.map(pr => ({ x: pr.pos.x, z: pr.pos.z, r: pr.id === 'kytka' ? 0.72 : 0.45 })),
+  ...Object.values(decor).filter(c => c.holder.position.y < 0.1).map(c => ({ x: c.holder.position.x, z: c.holder.position.z, r: 0.4 })),
+  ...state.list.filter(m => REACH[m.kind]).map(m => ({ x: m.x, z: m.z, r: REACH[m.kind] })),
+  ...(state.list.some(m => m.kind === 'postel') ? [PILLOW] : []),
+];
+// the box (x -0.97..0.87, z up to -0.41) and the turntable stand in front of it
+const clearOfBox = (x, z, r) => !(x > -0.97 - r && x < 0.87 + r && z < -0.41 + r) && Math.hypot(x, z - 0.55) > Math.max(0.95, 0.7 + r);
+const isFree = (x, z, r, taken) => clearOfBox(x, z, r) && !taken.some(t => Math.hypot(t.x - x, t.z - z) < r + t.r + 0.07);
+function viewPoint(r) {
+  const taken = occupied();
   for (const [x, z] of VIEW_SPOTS) {
-    const p = [x + (Math.random() - 0.5) * 0.15, z + (Math.random() - 0.5) * 0.15];
-    if (!taken.some(t => Math.hypot(t.x - p[0], t.z - p[1]) < gap)) return p;
+    const p = [x + (Math.random() - 0.5) * 0.06, z + (Math.random() - 0.5) * 0.15];
+    if (isFree(p[0], p[1], r, taken)) return p;
   }
   return null;
 }
-function freeFloorPoint(rand = Math.random, gap = 0.75) {
+function freeFloorPoint(rand = Math.random, r = 0.36) {
+  const taken = occupied();
   for (let i = 0; i < 60; i++) {
     const x = -3.1 + rand() * 6.2, z = -1.0 + rand() * 1.9;
-    if (Math.abs(x) < 1.4 && z < 0.5) continue; // the box and its stand
-    if (Math.hypot(x, z - 0.55) < 0.95) continue;  // the turntable stand in front of the box
-    if (x < -2.9 && z < -0.2) continue;          // the bed
-    const near = [...room.userData.props.map(pr => pr.pos), ...Object.values(decor).map(c => c.holder.position), ...state.list.map(m => new THREE.Vector3(m.x, 0, m.z))]
-      .some(p => Math.hypot(p.x - x, p.z - z) < gap);
-    if (!near) return [x, z];
+    if (x - r < -3.15 && z - r < -0.67) continue; // the bed
+    if (isFree(x, z, r, taken)) return [x, z];
   }
-  return [2.2, 0.6];
+  return null; // no room left: one thing less
 }
 function culprit() {
   const home = S.album.filter(a => !a.vylet); // a monster on a trip cannot make a mess
@@ -86,7 +95,9 @@ function makePiece(kind, { a = culprit(), g = null, quiet = false } = {}) {
   options.push('hracka');
   if (kind) { if (!options.includes(kind)) return null; options = [kind]; }
   const k = pickOne(options);
-  const [x, z] = (k === 'hracka' || k === 'louze' ? viewPoint(0.45) : null) || freeFloorPoint(Math.random, k === 'hracka' ? 0.42 : 0.75);
+  const at = (k === 'hracka' || k === 'louze' ? viewPoint(REACH[k]) : null) || (k === 'postel' ? [0, 0] : freeFloorPoint(Math.random, REACH[k]));
+  if (!at) return null;
+  const [x, z] = at;
   const m = { id: 'n' + Date.now().toString(36) + Math.floor(Math.random() * 1e6), kind: k, x, z, ry: Math.random() * 6.28, seed: a.seed, name: a.name };
   if (g) m.g = g;
   if (k === 'shozeno') m.spot = pickOne(things)[0];
@@ -256,7 +267,8 @@ function showMess(m, { sign: withSign = true } = {}) {
     h.position.set(m.x, 0, m.z);
     h.rotation.set(0, m.ry, Math.PI / 2 * (m.ry > 3 ? 1 : -1)); // lying on its side
     h.updateMatrixWorld(true);
-    h.position.y -= new THREE.Box3().setFromObject(h, true).min.y;
+    const bb = new THREE.Box3().setFromObject(h, true); // centred on its spot, resting on the floor
+    h.position.x += m.x - (bb.min.x + bb.max.x) / 2; h.position.z += m.z - (bb.min.z + bb.max.z) / 2; h.position.y -= bb.min.y;
     h.userData.pokoj = { kind: 'mess', id: m.id };
     shown[m.id] = { obj: h, sign: withSign ? sign(new THREE.Vector3(m.x, 0, m.z)) : null, undo: async () => {
       const spot = spotById(m.spot), from = h.position.clone(), r0 = h.rotation.clone(), to = spot.pos.clone();
@@ -270,8 +282,9 @@ function showMess(m, { sign: withSign = true } = {}) {
   } else if (m.kind === 'postel') {
     const bed = room.userData.bed, d = bed.userData.duvet, p = bed.userData.pillow;
     const d0 = { pos: d.position.clone(), rot: d.rotation.clone() }, p0 = { pos: p.position.clone(), rot: p.rotation.clone() };
-    d.position.x += 0.42; d.position.y -= 0.05; d.rotation.set(0.05, 0.45, -0.35);
-    p.position.set(0.95, 0.08, -0.35); p.rotation.set(0.1, 0.8, 0.25);
+    // the duvet slides askew on the mattress, the pillow lies on the floor beside the bed (clear of the frame)
+    d.position.x += 0.1; d.position.z -= 0.12; d.rotation.set(0.01, 0.2, -0.05);
+    p.position.set(1.05, 0.068, 0.3); p.rotation.set(0, 0.4, 0);
     bed.userData.pokoj = { kind: 'mess', id: m.id };
     const wp = bed.localToWorld(new THREE.Vector3(0, 0.3, 0.2));
     shown[m.id] = { obj: bed, sign: withSign ? sign(wp) : null, undo: async () => {
@@ -456,4 +469,5 @@ const messCount = () => state.list.length;
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden && maybeMakeMess()) setTimeout(() => { if (S.phase !== 'schovka') showBubble('🧹 Někdo ti v pokojíčku udělal nepořádek!'); }, 600); });
 
-export { makeMess, maybeMakeMess, messCount, messTargets, restoreMess, tapMess, uklidPanel, updateMess };
+const messObjects = () => Object.values(shown).map(s => s.obj); // for the overlap test
+export { messObjects, makeMess, maybeMakeMess, messCount, messTargets, restoreMess, tapMess, uklidPanel, updateMess };

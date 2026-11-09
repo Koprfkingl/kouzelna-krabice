@@ -324,7 +324,7 @@ try {
     await kk(() => window.__kk.openRoom()); await ready(1500);
     // the puddle can be anywhere in the room: tap its broom sign when on screen, otherwise go through the same handler
     const pt = await kk(() => { const k = window.__kk; const s = k.room.children.find(o => o.isSprite && o.userData.pokoj?.kind === 'mess'); const v = s.position.clone().project(k.camera); return { id: s.userData.pokoj.id, x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; });
-    if (pt.x > 10 && pt.x < 390 && pt.y > 80 && pt.y < 600) await page.mouse.click(pt.x, pt.y);
+    if (pt.x > 40 && pt.x < 360 && pt.y > 80 && pt.y < 600) await page.mouse.click(pt.x, pt.y);
     else await kk(id => window.__kk.tapMess(id), pt.id);
     await ready(1000);
     check(await phase() === 'uklid', 'viník se přiznal');
@@ -340,6 +340,26 @@ try {
     check(n >= 8, `v pokoji je velký nepořádek (${n} věcí)`);
     await page.waitForTimeout(800);
     await shot('7-neporadek');
+    // nothing of the mess may stick into the furniture or into each other (no physics: positions are placed by hand)
+    const hits = await kk(async () => {
+      const THREE = await import('three');
+      const r = window.__kk.room, bed = r.userData.bed, out = [];
+      const box = (o, name) => { const b = new THREE.Box3().setFromObject(o, true); b.expandByScalar(-0.02); b.name = name; return b; };
+      const things = window.__kk.messObjects().filter(o => o !== bed).map((o, i) => box(o, 'nepořádek ' + i));
+      things.push(box(bed.userData.pillow, 'polštář'));
+      const fixed = r.userData.props.filter(p => p.obj).map(p => box(p.obj, p.id));
+      fixed.push(...Object.values(window.__kk.decor()).filter(c => c.holder.position.y < 0.1).map(c => box(c.holder, 'ozdoba')));
+      // the box itself (its whole group also holds the beams and whatever stands on the stage)
+      const krabice = new THREE.Box3(new THREE.Vector3(-0.97, 0, -1.64), new THREE.Vector3(0.87, 1.3, -0.41)); krabice.name = 'krabice'; fixed.push(krabice);
+      const frame = new THREE.Box3(new THREE.Vector3(bed.position.x - 0.6, 0, bed.position.z - 0.95), new THREE.Vector3(bed.position.x + 0.6, 0.4, bed.position.z + 0.95)); frame.name = 'postel';
+      fixed.push(frame);
+      things.forEach((a, i) => {
+        if (a.min.y < -0.03) out.push(a.name + ' pod podlahou');
+        for (const b of [...fixed, ...things.slice(i + 1)]) if (a.intersectsBox(b)) out.push(a.name + ' × ' + b.name);
+      });
+      return out;
+    });
+    check(!hits.length, 'nepořádek nic neprotíná' + (hits.length ? ': ' + hits.join(', ') : ''));
     const ids = await kk(() => JSON.parse(localStorage.getItem('kk-neporadek')).list.map(m => m.id));
     await kk(id => window.__kk.tapMess(id), ids[0]); await ready(1000);
     check(/Zbývá/.test(await text('#akce-nadpis')), 'panel ukazuje, kolik věcí zbývá');
